@@ -26,8 +26,6 @@ impl<I2C, DELAY> BMP180<I2C, DELAY> {
     }
 }
 
-impl<I2C, DELAY> traits::Sealed for BMP180<I2C, DELAY> {}
-
 impl<I2C, DELAY> traits::BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
     fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self {
         Self {
@@ -51,7 +49,13 @@ where
     type Error = I2C::Error;
 
     async fn read_id(&mut self) -> Result<u8, Self::Error> {
-        Ok(0)
+        let mut data = [0u8; 2];
+
+        self.i2c
+            .write_read(BMP180_I2CADDR, &[BMP180_REGISTER_CHIPID], &mut data)
+            .await?;
+
+        Ok(data[0])
     }
 
     async fn read_calibration(&mut self) -> Result<Calibration, Self::Error> {

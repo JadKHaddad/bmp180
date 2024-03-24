@@ -1,20 +1,32 @@
 use crate::{calibration::Calibration, mode::Mode, BMP180_ID};
 
-pub enum BMP180Error<E> {
-    I2C(E),
-    InvalidId,
+pub enum BMP180Error<I2CError> {
+    I2C(I2CError),
+    InvalidId(u8),
 }
 
-impl<E> From<E> for BMP180Error<E> {
-    fn from(error: E) -> Self {
+impl<I2CError> From<I2CError> for BMP180Error<I2CError> {
+    fn from(error: I2CError) -> Self {
         Self::I2C(error)
     }
 }
 
-pub(crate) trait Sealed {}
+impl<I2CError> core::fmt::Debug for BMP180Error<I2CError>
+where
+    I2CError: core::fmt::Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::I2C(err) => write!(f, "I2C error: {err:?}"),
+            Self::InvalidId(id) => write!(
+                f,
+                "Invalid ID. Expected 0x{BMP180_ID:02X}, found 0x{id:02X}"
+            ),
+        }
+    }
+}
 
-#[allow(private_bounds)]
-pub trait BaseBMP180<I2C, DELAY>: Sealed + Sized {
+pub(crate) trait BaseBMP180<I2C, DELAY>: Sized {
     fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self;
 
     fn set_calibration(&mut self, calibration: Calibration);
@@ -24,26 +36,37 @@ pub trait BaseBMP180<I2C, DELAY>: Sealed + Sized {
     }
 }
 
+#[allow(private_bounds)]
 #[allow(async_fn_in_trait)]
 pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     type Error;
+
+    fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self {
+        <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay)
+    }
+
+    async fn initialize(&mut self) -> Result<(), BMP180Error<Self::Error>> {
+        let id = self.read_id().await?;
+
+        if !Self::validate_id(id) {
+            return Err(BMP180Error::InvalidId(id));
+        }
+
+        let calibration = self.read_calibration().await?;
+
+        self.set_calibration(calibration);
+
+        Ok(())
+    }
 
     async fn initialized(
         mode: Mode,
         i2c: I2C,
         delay: DELAY,
     ) -> Result<Self, BMP180Error<Self::Error>> {
-        let mut bmp180 = Self::new(mode, i2c, delay);
+        let mut bmp180 = <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay);
 
-        let id = bmp180.read_id().await?;
-
-        if !Self::validate_id(id) {
-            return Err(BMP180Error::InvalidId);
-        }
-
-        let calibration = bmp180.read_calibration().await?;
-
-        bmp180.set_calibration(calibration);
+        bmp180.initialize().await?;
 
         Ok(bmp180)
     }
