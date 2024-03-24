@@ -7,6 +7,7 @@ name = "bmp180"
 version = "0.1.0"
 dependencies = [
  "embedded-hal-async",
+ "libm",
 ]
 
 [[package]]
@@ -23,3 +24,9 @@ checksum = "0c4c685bbef7fe13c3c6dd4da26841ed3980ef33e841cddfa15ce8a8fb3f1884"
 dependencies = [
  "embedded-hal",
 ]
+
+[[package]]
+name = "libm"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"

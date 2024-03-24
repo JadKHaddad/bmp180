@@ -17,12 +17,17 @@ pub struct BMP180<I2C, DELAY> {
 }
 
 impl<I2C, DELAY> BMP180<I2C, DELAY> {
-    pub fn mode(&self) -> &Mode {
-        &self.mode
+    pub fn mode(&self) -> Mode {
+        self.mode
     }
 
     pub fn calibration(&self) -> &Calibration {
         &self.calibration
+    }
+}
+impl<I2C, DELAY> traits::PrivateBaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
+    fn set_calibration(&mut self, calibration: Calibration) {
+        self.calibration = calibration;
     }
 }
 
@@ -36,8 +41,12 @@ impl<I2C, DELAY> traits::BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
         }
     }
 
-    fn set_calibration(&mut self, calibration: Calibration) {
-        self.calibration = calibration;
+    fn mode(&self) -> Mode {
+        self.mode()
+    }
+
+    fn calibration(&self) -> &Calibration {
+        self.calibration()
     }
 }
 
@@ -68,19 +77,11 @@ where
         Ok(Calibration::from_slice(&data))
     }
 
-    async fn read_raw_temperature(&mut self) -> u16 {
-        0
+    async fn read_raw_temperature(&mut self) -> Result<u16, Self::Error> {
+        todo!()
     }
 
-    async fn read_temperature(&mut self) -> f32 {
-        0.0
-    }
-
-    async fn read_raw_pressure(&mut self) -> u32 {
-        0
-    }
-
-    async fn read_pressure(&mut self) -> i32 {
-        0
+    async fn read_raw_pressure(&mut self) -> Result<u32, Self::Error> {
+        todo!()
     }
 }

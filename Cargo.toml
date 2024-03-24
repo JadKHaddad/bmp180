@@ -8,3 +8,4 @@ authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 
 [dependencies]
 embedded-hal-async = "1.0.0"
+libm = "0.2.8"
