@@ -2,6 +2,9 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+use bmp180::mode::Mode;
+use bmp180::traits::AsyncBMP180;
+use bmp180::BMP180;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_async::i2c::I2c;
@@ -11,6 +14,14 @@ use esp_hal::{
     system::SystemExt, timer::TimerGroup, IO,
 };
 use fugit::RateExtU32;
+
+struct MyDelay {}
+
+impl embedded_hal_async::delay::DelayNs for MyDelay {
+    async fn delay_ns(&mut self, _ns: u32) {
+        {}
+    }
+}
 
 #[main]
 async fn main(spawner: Spawner) {
@@ -24,24 +35,32 @@ async fn main(spawner: Spawner) {
 
     let mut i2c0 = I2C::new(
         peripherals.I2C0,
-        io.pins.gpio4,
-        io.pins.gpio5,
+        io.pins.gpio21,
+        io.pins.gpio22,
         400.kHz(),
         &clocks,
     );
 
     embassy::init(&clocks, timg0);
 
+    let bmp180 = BMP180::initialized(Mode::UltraLowPower, i2c0, MyDelay {})
+        .await
+        .unwrap();
+
+    let calibration = bmp180.calibration();
+
+    log::info!("calibration: {:?}", calibration);
+
     spawner.spawn(logger()).ok();
 
-    loop {
-        let mut data = [0u8; 22];
-        i2c0.write_read(0x77, &[0xaa], &mut data).await.ok();
+    // loop {
+    //     let mut data = [0u8; 22];
+    //     i2c0.write_read(0x77, &[0xaa], &mut data).await.ok();
 
-        log::info!("{:02x?}", data);
+    //     log::info!("{:02x?}", data);
 
-        Timer::after(Duration::from_secs(1)).await;
-    }
+    //     Timer::after(Duration::from_secs(1)).await;
+    // }
 }
 
 #[embassy_executor::task]

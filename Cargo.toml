@@ -7,3 +7,4 @@ authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+embedded-hal-async = "1.0.0"
