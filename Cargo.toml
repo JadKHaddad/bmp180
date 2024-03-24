@@ -6,6 +6,11 @@ authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+log = ["dep:log"]
+
 [dependencies]
 embedded-hal-async = "1.0.0"
 libm = "0.2.8"
+log = { version = "0.4.20", optional = true }
