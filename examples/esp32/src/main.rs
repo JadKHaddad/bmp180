@@ -53,26 +53,26 @@ async fn main(spawner: Spawner) {
         let pressure = bmp180.read_pressure().await.unwrap();
         log::info!("pressure: {} Pa", pressure);
 
-        let altidude = bmp180
-            .read_altitude_with_sea_level_pressure(101325)
-            .await
-            .unwrap();
-        log::info!("altidude: {} m", altidude);
+        // let altidude = bmp180
+        //     .read_altitude_with_sea_level_pressure(101325)
+        //     .await
+        //     .unwrap();
+        // log::info!("altidude: {} m", altidude);
 
-        let pressure_at_sea_level = bmp180
-            .read_sea_level_pressure_with_altitude_meters(0.0)
-            .await
-            .unwrap();
-        log::info!("pressure_at_sea_level: {} Pa", pressure_at_sea_level);
+        // let pressure_at_sea_level = bmp180
+        //     .read_sea_level_pressure_with_altitude_meters(0.0)
+        //     .await
+        //     .unwrap();
+        // log::info!("pressure_at_sea_level: {} Pa", pressure_at_sea_level);
 
-        Timer::after(Duration::from_secs(1)).await;
+        Timer::after(Duration::from_secs(3)).await;
     }
 }
 
 #[embassy_executor::task]
 async fn logger() {
     loop {
-        log::info!("up");
+        // log::info!("up");
         Timer::after(Duration::from_secs(3)).await;
     }
 }

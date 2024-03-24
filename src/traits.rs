@@ -57,6 +57,12 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         raw_temperature: i32,
         raw_pressure: u32,
     ) -> i32 {
+        #[cfg(feature = "log")]
+        {
+            log::debug!("Raw temperature: {}", raw_temperature);
+            log::debug!("Raw pressure: {}", raw_pressure);
+        }
+
         let b5 = Self::compute_b5(calibration, raw_temperature);
 
         let b6 = b5 - 4000;
@@ -65,11 +71,30 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         let x3 = x1 + x2;
         let b3 = ((((calibration.ac1 as i32) * 4 + x3) << mode as u8) + 2) / 4;
 
+        #[cfg(feature = "log")]
+        {
+            log::debug!("B5: {}", b5);
+            log::debug!("B6: {}", b6);
+            log::debug!("X1: {}", x1);
+            log::debug!("X2: {}", x2);
+            log::debug!("X3: {}", x3);
+            log::debug!("B3: {}", b3);
+        }
+
         let x1 = (calibration.ac3 as i32 * b6) >> 13;
         let x2 = (calibration.b1 as i32 * ((b6 * b6) >> 12)) >> 16;
         let x3 = ((x1 + x2) + 2) >> 2;
         let b4 = ((calibration.ac4 as u32) * ((x3 + 32768) as u32)) >> 15;
         let b7 = (raw_pressure - b3 as u32) * (50000 >> mode as u8);
+
+        #[cfg(feature = "log")]
+        {
+            log::debug!("X1: {}", x1);
+            log::debug!("X2: {}", x2);
+            log::debug!("X3: {}", x3);
+            log::debug!("B4: {}", b4);
+            log::debug!("B7: {}", b7);
+        }
 
         let p = if b7 < 0x80000000 {
             (b7 * 2) / b4
@@ -81,7 +106,21 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         let x1 = (x1 * 3038) >> 16;
         let x2 = (-7357 * p) >> 16;
 
-        p + ((x1 + x2 + 3791_i32) >> 4)
+        #[cfg(feature = "log")]
+        {
+            log::debug!("P: {}", p);
+            log::debug!("X1: {}", x1);
+            log::debug!("X2: {}", x2);
+        }
+
+        let p = p + ((x1 + x2 + 3791_i32) >> 4);
+
+        #[cfg(feature = "log")]
+        {
+            log::debug!("P: {}", p);
+        }
+
+        p
     }
 
     fn calculate_sea_level_pressure(pressure: i32, altitude_meters: f32) -> i32 {

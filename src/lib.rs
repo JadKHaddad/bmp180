@@ -101,7 +101,7 @@ where
         self.i2c
             .write(
                 BMP180_I2CADDR,
-                &[BMP180_CONTROL, BMP180_READPRESSURECMD + (mode as u8) << 6],
+                &[BMP180_CONTROL, BMP180_READPRESSURECMD + ((mode as u8) << 6)],
             )
             .await?;
 
@@ -116,7 +116,7 @@ where
         let raw_pressure = data[1] as u32 | ((data[0] as u32) << 8);
         let raw_pressure = raw_pressure << 8;
 
-        let mut data = [0u8; 1];
+        let mut data = [0u8; 2];
 
         self.i2c
             .write_read(BMP180_I2CADDR, &[BMP180_PRESSUREDATA + 2], &mut data)
