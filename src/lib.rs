@@ -78,10 +78,53 @@ where
     }
 
     async fn read_raw_temperature(&mut self) -> Result<u16, Self::Error> {
-        todo!()
+        self.i2c
+            .write(BMP180_I2CADDR, &[BMP180_CONTROL, BMP180_READTEMPCMD])
+            .await?;
+
+        self.delay.delay_ns(4500).await;
+
+        let mut data = [0u8; 2];
+
+        self.i2c
+            .write_read(BMP180_I2CADDR, &[BMP180_TEMPDATA], &mut data)
+            .await?;
+
+        let raw_temperature = data[1] as u16 | ((data[0] as u16) << 8);
+
+        Ok(raw_temperature)
     }
 
     async fn read_raw_pressure(&mut self) -> Result<u32, Self::Error> {
-        todo!()
+        let mode = self.mode();
+
+        self.i2c
+            .write(
+                BMP180_I2CADDR,
+                &[BMP180_CONTROL, BMP180_READPRESSURECMD + (mode as u8) << 6],
+            )
+            .await?;
+
+        self.delay.delay_ms(mode.delay_ms()).await;
+
+        let mut data = [0u8; 2];
+
+        self.i2c
+            .write_read(BMP180_I2CADDR, &[BMP180_PRESSUREDATA], &mut data)
+            .await?;
+
+        let raw_pressure = data[1] as u32 | ((data[0] as u32) << 8);
+        let raw_pressure = raw_pressure << 8;
+
+        let mut data = [0u8; 1];
+
+        self.i2c
+            .write_read(BMP180_I2CADDR, &[BMP180_PRESSUREDATA + 2], &mut data)
+            .await?;
+
+        let raw_pressure = raw_pressure | data[0] as u32;
+        let raw_pressure = raw_pressure >> (8 - mode as u32);
+
+        Ok(raw_pressure)
     }
 }

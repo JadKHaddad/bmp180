@@ -15,14 +15,6 @@ use esp_hal::{
 };
 use fugit::RateExtU32;
 
-struct MyDelay {}
-
-impl embedded_hal_async::delay::DelayNs for MyDelay {
-    async fn delay_ns(&mut self, _ns: u32) {
-        {}
-    }
-}
-
 #[main]
 async fn main(spawner: Spawner) {
     esp_println::logger::init_logger_from_env();
@@ -30,6 +22,7 @@ async fn main(spawner: Spawner) {
     let peripherals = Peripherals::take();
     let system = peripherals.SYSTEM.split();
     let clocks = ClockControl::max(system.clock_control).freeze();
+
     let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
@@ -43,7 +36,7 @@ async fn main(spawner: Spawner) {
 
     embassy::init(&clocks, timg0);
 
-    let bmp180 = BMP180::initialized(Mode::UltraLowPower, i2c0, MyDelay {})
+    let mut bmp180 = BMP180::initialized(Mode::UltraLowPower, i2c0, embassy_time::Delay {})
         .await
         .unwrap();
 
@@ -53,14 +46,27 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(logger()).ok();
 
-    // loop {
-    //     let mut data = [0u8; 22];
-    //     i2c0.write_read(0x77, &[0xaa], &mut data).await.ok();
+    loop {
+        let tempreture = bmp180.read_temperature().await.unwrap();
+        log::info!("tempreture: {} *C", tempreture);
 
-    //     log::info!("{:02x?}", data);
+        let pressure = bmp180.read_pressure().await.unwrap();
+        log::info!("pressure: {} Pa", pressure);
 
-    //     Timer::after(Duration::from_secs(1)).await;
-    // }
+        let altidude = bmp180
+            .read_altitude_with_sea_level_pressure(101325)
+            .await
+            .unwrap();
+        log::info!("altidude: {} m", altidude);
+
+        let pressure_at_sea_level = bmp180
+            .read_sea_level_pressure_with_altitude_meters(0.0)
+            .await
+            .unwrap();
+        log::info!("pressure_at_sea_level: {} Pa", pressure_at_sea_level);
+
+        Timer::after(Duration::from_secs(1)).await;
+    }
 }
 
 #[embassy_executor::task]

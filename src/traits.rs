@@ -60,15 +60,15 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         let b5 = Self::compute_b5(calibration, raw_temperature);
 
         let b6 = b5 - 4000;
-        let x1 = (calibration.b2 as i32 * (b6 * b6 >> 12)) >> 11;
+        let x1 = (calibration.b2 as i32 * ((b6 * b6) >> 12)) >> 11;
         let x2 = (calibration.ac2 as i32 * b6) >> 11;
         let x3 = x1 + x2;
         let b3 = ((((calibration.ac1 as i32) * 4 + x3) << mode as u8) + 2) / 4;
 
         let x1 = (calibration.ac3 as i32 * b6) >> 13;
-        let x2 = (calibration.b1 as i32 * (b6 * b6 >> 12)) >> 16;
+        let x2 = (calibration.b1 as i32 * ((b6 * b6) >> 12)) >> 16;
         let x3 = ((x1 + x2) + 2) >> 2;
-        let b4 = (calibration.ac4 as u32) * ((x3 + 32768) as u32) >> 15;
+        let b4 = ((calibration.ac4 as u32) * ((x3 + 32768) as u32)) >> 15;
         let b7 = (raw_pressure - b3 as u32) * (50000 >> mode as u8);
 
         let p = if b7 < 0x80000000 {
