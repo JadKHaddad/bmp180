@@ -9,9 +9,34 @@ mod consts;
 pub mod mode;
 pub mod traits;
 
+/// A small struct to represent the sea level pressure.
+///
+/// Defiend to help create a default sea level pressure at 101325 Pa.
+pub struct SeaLevelPressure(pub f32);
+
+impl From<f32> for SeaLevelPressure {
+    fn from(pressure: f32) -> Self {
+        Self(pressure)
+    }
+}
+
+impl From<SeaLevelPressure> for f32 {
+    fn from(pressure: SeaLevelPressure) -> Self {
+        pressure.0
+    }
+}
+
+impl Default for SeaLevelPressure {
+    fn default() -> Self {
+        Self(101325.0)
+    }
+}
+
 pub struct BMP180<I2C, DELAY> {
     mode: Mode,
     calibration: Calibration,
+    temperature: i32,
+    pressure: i32,
     i2c: I2C,
     delay: DELAY,
 }
@@ -26,6 +51,14 @@ impl<I2C, DELAY> BMP180<I2C, DELAY> {
     }
 }
 impl<I2C, DELAY> traits::PrivateBaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
+    fn set_temperature(&mut self, temperature: i32) {
+        self.temperature = temperature;
+    }
+
+    fn set_pressure(&mut self, pressure: i32) {
+        self.pressure = pressure;
+    }
+
     fn set_calibration(&mut self, calibration: Calibration) {
         self.calibration = calibration;
     }
@@ -36,6 +69,8 @@ impl<I2C, DELAY> traits::BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
         Self {
             mode,
             calibration: Calibration::default(),
+            temperature: 0,
+            pressure: 0,
             i2c,
             delay,
         }
@@ -47,6 +82,14 @@ impl<I2C, DELAY> traits::BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
 
     fn calibration(&self) -> &Calibration {
         self.calibration()
+    }
+
+    fn temperature(&self) -> i32 {
+        self.temperature
+    }
+
+    fn pressure(&self) -> i32 {
+        self.pressure
     }
 }
 

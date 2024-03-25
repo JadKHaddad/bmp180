@@ -2,9 +2,9 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use bmp180::mode::Mode;
 use bmp180::traits::AsyncBMP180;
 use bmp180::BMP180;
+use bmp180::{mode::Mode, traits::BaseBMP180};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use embedded_hal_async::i2c::I2c;
@@ -47,26 +47,13 @@ async fn main(spawner: Spawner) {
     spawner.spawn(logger()).ok();
 
     loop {
-        let tempreture = bmp180.read_temperature().await.unwrap();
-        let tempreture = tempreture as f32 / 10.0;
+        bmp180.update().await.ok();
 
+        let tempreture = bmp180.temperature_celsius();
         log::info!("tempreture: {} *C", tempreture);
 
-        let pressure = bmp180.read_pressure().await.unwrap();
-
+        let pressure = bmp180.pressure();
         log::info!("pressure: {} Pa", pressure);
-
-        // let altidude = bmp180
-        //     .read_altitude_with_sea_level_pressure(101325)
-        //     .await
-        //     .unwrap();
-        // log::info!("altidude: {} m", altidude);
-
-        // let pressure_at_sea_level = bmp180
-        //     .read_sea_level_pressure_with_altitude_meters(0.0)
-        //     .await
-        //     .unwrap();
-        // log::info!("pressure_at_sea_level: {} Pa", pressure_at_sea_level);
 
         Timer::after(Duration::from_secs(3)).await;
     }

@@ -28,6 +28,10 @@ where
 pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
     fn set_calibration(&mut self, calibration: Calibration);
 
+    fn set_temperature(&mut self, temperature: i32);
+
+    fn set_pressure(&mut self, pressure: i32);
+
     fn validate_id(id: u8) -> bool {
         id == BMP180_ID
     }
@@ -40,14 +44,34 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
 
     fn calibration(&self) -> &Calibration;
 
-    fn compute_b5(calibration: &Calibration, raw_temperature: i16) -> i32 {
+    /// True temperature according to the calibration data.
+    fn temperature(&self) -> i32;
+
+    /// True pressure in `Pa`according to the calibration data.
+    fn pressure(&self) -> i32;
+
+    /// Temperature in Celsius.
+    fn temperature_celsius(&self) -> f32 {
+        self.temperature() as f32 / 10.0
+    }
+
+    /// Compute B5 value.
+    ///
+    /// Exposed to the public API because why not.
+    fn compute_b5(&self, raw_temperature: i16) -> i32 {
+        let calibration = self.calibration();
+
         let x1 = ((raw_temperature as i32 - calibration.ac6 as i32) * calibration.ac5 as i32) >> 15;
         let x2 = ((calibration.mc as i32) << 11) / (x1 + calibration.md as i32);
+
         x1 + x2
     }
 
-    fn compute_temperature(calibration: &Calibration, raw_temperature: i16) -> i32 {
-        let b5 = Self::compute_b5(calibration, raw_temperature);
+    /// Compute true temprature.
+    ///
+    /// Exposed to the public API because why not.
+    fn compute_temperature(&self, raw_temperature: i16) -> i32 {
+        let b5 = self.compute_b5(raw_temperature);
 
         #[cfg(feature = "log")]
         {
@@ -59,12 +83,13 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         (b5 + 8) >> 4
     }
 
-    fn compute_pressure(
-        mode: Mode,
-        calibration: &Calibration,
-        raw_temperature: i16,
-        raw_pressure: i32,
-    ) -> i32 {
+    /// Compute true pressure in `Pa`.
+    ///
+    /// Exposed to the public API because why not.
+    fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> i32 {
+        let calibration = self.calibration();
+        let mode = self.mode();
+
         #[cfg(feature = "log")]
         {
             log::debug!("Computing pressure");
@@ -72,7 +97,7 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
             log::debug!("Raw pressure: {}", raw_pressure);
         }
 
-        let b5 = Self::compute_b5(calibration, raw_temperature);
+        let b5 = self.compute_b5(raw_temperature);
 
         let b6 = b5 - 4000;
         let x1 = (calibration.b2 as i32 * ((b6 * b6) >> 12)) >> 11;
@@ -115,31 +140,33 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         let x1 = (x1 * 3038) >> 16;
         let x2 = (-7357 * p) >> 16;
 
+        let p = p + ((x1 + x2 + 3791_i32) >> 4);
+
         #[cfg(feature = "log")]
         {
             log::debug!("P: {}", p);
             log::debug!("X1: {}", x1);
             log::debug!("X2: {}", x2);
-        }
-
-        let p = p + ((x1 + x2 + 3791_i32) >> 4);
-
-        #[cfg(feature = "log")]
-        {
             log::debug!("P: {}", p);
         }
 
         p
     }
 
-    fn calculate_sea_level_pressure(pressure: i32, altitude_meters: f32) -> i32 {
-        let pressure = pressure as f32;
+    /// Pressure in `Pa` at sea level.
+    fn sea_level_pressure(&self, altitude_meters: f32) -> i32 {
+        let pressure = self.pressure() as f32;
 
         (pressure / libm::powf(1.0 - altitude_meters / 44330.0, 5.255)) as i32
     }
 
-    fn compute_altitude(pressure: i32, sea_level_pressure: i32) -> f32 {
-        44330.0 * (1.0 - libm::powf(pressure as f32 / sea_level_pressure as f32, 0.1903))
+    /// Altitude in meters.
+    ///
+    /// See [SeaLevelPressure](crate::SeaLevelPressure) wich has a default value of 101325 Pa.
+    fn altitude(&self, sea_level_pressure: f32) -> f32 {
+        let pressure = self.pressure();
+
+        44330.0 * (1.0 - libm::powf(pressure as f32 / sea_level_pressure, 0.1903))
     }
 }
 
@@ -148,18 +175,26 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
 pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2C, DELAY> {
     type Error;
 
+    /// Read Device ID.
     async fn read_id(&mut self) -> Result<u8, Self::Error>;
 
+    /// Read calibration data.
     async fn read_calibration(&mut self) -> Result<Calibration, Self::Error>;
 
+    /// Read raw temperature.
     async fn read_raw_temperature(&mut self) -> Result<i16, Self::Error>;
 
+    /// Read raw pressure.
     async fn read_raw_pressure(&mut self) -> Result<i32, Self::Error>;
 
+    /// Create a new `BMP180` instance.
     fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self {
         <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay)
     }
 
+    /// Initialize `BMP180` instance.
+    ///
+    /// Initialized instance will have its calibration data set.
     async fn initialize(&mut self) -> Result<(), BMP180Error<Self::Error>> {
         let id = self.read_id().await?;
 
@@ -174,6 +209,9 @@ pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2
         Ok(())
     }
 
+    /// Create a new initialized `BMP180` instance.
+    ///
+    /// Initialized instance will have its calibration data set.
     async fn initialized(
         mode: Mode,
         i2c: I2C,
@@ -186,56 +224,33 @@ pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2
         Ok(bmp180)
     }
 
-    async fn read_temperature(&mut self) -> Result<i32, Self::Error> {
+    /// Update temperature in `self`.
+    async fn update_temperature(&mut self) -> Result<(), Self::Error> {
         let raw_temperature = self.read_raw_temperature().await?;
-        let calibration = self.calibration();
 
-        Ok(Self::compute_temperature(calibration, raw_temperature))
+        self.set_temperature(self.compute_temperature(raw_temperature));
+
+        Ok(())
     }
 
-    async fn read_pressure(&mut self) -> Result<i32, Self::Error> {
+    /// Update pressure in `self`.
+    async fn update_pressure(&mut self) -> Result<(), Self::Error> {
         let raw_temperature = self.read_raw_temperature().await?;
         let raw_pressure = self.read_raw_pressure().await?;
 
-        let calibration = self.calibration();
-        let mode = self.mode();
+        self.set_pressure(self.compute_pressure(raw_temperature, raw_pressure));
 
-        Ok(Self::compute_pressure(
-            mode,
-            calibration,
-            raw_temperature,
-            raw_pressure,
-        ))
+        Ok(())
     }
 
-    async fn read_sea_level_pressure_with_altitude_meters(
-        &mut self,
-        altitude_meters: f32,
-    ) -> Result<i32, Self::Error> {
-        let pressure = self.read_pressure().await?;
+    /// Update both temperature and pressure in `self`.
+    async fn update(&mut self) -> Result<(), Self::Error> {
+        let raw_temperature = self.read_raw_temperature().await?;
+        let raw_pressure = self.read_raw_pressure().await?;
 
-        Ok(Self::calculate_sea_level_pressure(
-            pressure,
-            altitude_meters,
-        ))
-    }
+        self.set_temperature(self.compute_temperature(raw_temperature));
+        self.set_pressure(self.compute_pressure(raw_temperature, raw_pressure));
 
-    async fn read_altitude_with_sea_level_pressure(
-        &mut self,
-        sea_level_pressure: i32,
-    ) -> Result<f32, Self::Error> {
-        let pressure = self.read_pressure().await?;
-
-        Ok(Self::compute_altitude(pressure, sea_level_pressure))
-    }
-
-    async fn read_altitude_with_altitude_meters(
-        &mut self,
-        altitude_meters: f32,
-    ) -> Result<f32, Self::Error> {
-        let pressure = self.read_pressure().await?;
-        let sea_level_pressure = Self::calculate_sea_level_pressure(pressure, altitude_meters);
-
-        Ok(Self::compute_altitude(pressure, sea_level_pressure))
+        Ok(())
     }
 }
