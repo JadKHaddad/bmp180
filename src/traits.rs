@@ -40,25 +40,34 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
 
     fn calibration(&self) -> &Calibration;
 
-    fn compute_b5(calibration: &Calibration, raw_temperature: i32) -> i32 {
-        let x1 = ((raw_temperature - calibration.ac6 as i32) * calibration.ac5 as i32) >> 15;
+    fn compute_b5(calibration: &Calibration, raw_temperature: i16) -> i32 {
+        let x1 = ((raw_temperature as i32 - calibration.ac6 as i32) * calibration.ac5 as i32) >> 15;
         let x2 = ((calibration.mc as i32) << 11) / (x1 + calibration.md as i32);
         x1 + x2
     }
 
-    fn compute_temperature(calibration: &Calibration, raw_temperature: i32) -> f32 {
+    fn compute_temperature(calibration: &Calibration, raw_temperature: i16) -> i32 {
         let b5 = Self::compute_b5(calibration, raw_temperature);
-        ((b5 + 8) >> 4) as f32 / 10.0
+
+        #[cfg(feature = "log")]
+        {
+            log::debug!("Computing temperature");
+            log::debug!("Raw temperature: {}", raw_temperature);
+            log::debug!("B5: {}", b5);
+        }
+
+        (b5 + 8) >> 4
     }
 
     fn compute_pressure(
         mode: Mode,
         calibration: &Calibration,
-        raw_temperature: i32,
-        raw_pressure: u32,
+        raw_temperature: i16,
+        raw_pressure: i32,
     ) -> i32 {
         #[cfg(feature = "log")]
         {
+            log::debug!("Computing pressure");
             log::debug!("Raw temperature: {}", raw_temperature);
             log::debug!("Raw pressure: {}", raw_pressure);
         }
@@ -85,7 +94,7 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         let x2 = (calibration.b1 as i32 * ((b6 * b6) >> 12)) >> 16;
         let x3 = ((x1 + x2) + 2) >> 2;
         let b4 = ((calibration.ac4 as u32) * ((x3 + 32768) as u32)) >> 15;
-        let b7 = (raw_pressure - b3 as u32) * (50000 >> mode as u8);
+        let b7 = (raw_pressure as u32 - b3 as u32) * (50000 >> mode as u8);
 
         #[cfg(feature = "log")]
         {
@@ -143,9 +152,9 @@ pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2
 
     async fn read_calibration(&mut self) -> Result<Calibration, Self::Error>;
 
-    async fn read_raw_temperature(&mut self) -> Result<u16, Self::Error>;
+    async fn read_raw_temperature(&mut self) -> Result<i16, Self::Error>;
 
-    async fn read_raw_pressure(&mut self) -> Result<u32, Self::Error>;
+    async fn read_raw_pressure(&mut self) -> Result<i32, Self::Error>;
 
     fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self {
         <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay)
@@ -177,15 +186,15 @@ pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2
         Ok(bmp180)
     }
 
-    async fn read_temperature(&mut self) -> Result<f32, Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await? as i32;
+    async fn read_temperature(&mut self) -> Result<i32, Self::Error> {
+        let raw_temperature = self.read_raw_temperature().await?;
         let calibration = self.calibration();
 
         Ok(Self::compute_temperature(calibration, raw_temperature))
     }
 
     async fn read_pressure(&mut self) -> Result<i32, Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await? as i32;
+        let raw_temperature = self.read_raw_temperature().await?;
         let raw_pressure = self.read_raw_pressure().await?;
 
         let calibration = self.calibration();

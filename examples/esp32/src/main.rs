@@ -48,9 +48,12 @@ async fn main(spawner: Spawner) {
 
     loop {
         let tempreture = bmp180.read_temperature().await.unwrap();
+        let tempreture = tempreture as f32 / 10.0;
+
         log::info!("tempreture: {} *C", tempreture);
 
         let pressure = bmp180.read_pressure().await.unwrap();
+
         log::info!("pressure: {} Pa", pressure);
 
         // let altidude = bmp180
