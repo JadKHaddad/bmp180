@@ -6,6 +6,7 @@ version = 3
 name = "bmp180"
 version = "0.1.0"
 dependencies = [
+ "embedded-hal",
  "embedded-hal-async",
  "libm",
  "log",

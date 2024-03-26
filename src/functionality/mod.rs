@@ -1,4 +1,14 @@
-use crate::{calibration::Calibration, mode::Mode, BMP180_ID};
+//! Device functionality in async and blocking modes.
+
+#[cfg(feature = "async")]
+pub mod asynchronous;
+#[cfg(feature = "blocking")]
+pub mod blocking;
+
+use crate::{
+    constants::BMP180_ID,
+    device::{calibration::Calibration, mode::Mode},
+};
 
 pub enum BMP180Error<I2CError> {
     I2C(I2CError),
@@ -25,6 +35,7 @@ where
         }
     }
 }
+
 pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
     fn set_calibration(&mut self, calibration: Calibration);
 
@@ -38,13 +49,14 @@ pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
 }
 
 pub trait BaseBMP180<I2C, DELAY>: Sized {
+    /// Create a new `BMP180` instance.
     fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self;
 
     fn mode(&self) -> Mode;
 
     fn calibration(&self) -> &Calibration;
 
-    /// True temperature according to the calibration data.
+    /// True temperature in `0.1 C` according to the calibration data.
     fn temperature(&self) -> i32;
 
     /// True pressure in `Pa`according to the calibration data.
@@ -67,7 +79,7 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         x1 + x2
     }
 
-    /// Compute true temprature.
+    /// Compute true temprature in `0.1 C`.
     ///
     /// Exposed to the public API because why not.
     fn compute_temperature(&self, raw_temperature: i16) -> i32 {
@@ -162,95 +174,10 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
 
     /// Altitude in meters.
     ///
-    /// See [SeaLevelPressure](crate::SeaLevelPressure) wich has a default value of 101325 Pa.
+    /// Standard pressure at sea level is `101325 Pa`.
     fn altitude(&self, sea_level_pressure: f32) -> f32 {
         let pressure = self.pressure();
 
         44330.0 * (1.0 - libm::powf(pressure as f32 / sea_level_pressure, 0.1903))
-    }
-}
-
-#[allow(private_bounds)]
-#[allow(async_fn_in_trait)]
-pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2C, DELAY> {
-    type Error;
-
-    /// Read Device ID.
-    async fn read_id(&mut self) -> Result<u8, Self::Error>;
-
-    /// Read calibration data.
-    async fn read_calibration(&mut self) -> Result<Calibration, Self::Error>;
-
-    /// Read raw temperature.
-    async fn read_raw_temperature(&mut self) -> Result<i16, Self::Error>;
-
-    /// Read raw pressure.
-    async fn read_raw_pressure(&mut self) -> Result<i32, Self::Error>;
-
-    /// Create a new `BMP180` instance.
-    fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self {
-        <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay)
-    }
-
-    /// Initialize `BMP180` instance.
-    ///
-    /// Initialized instance will have its calibration data set.
-    async fn initialize(&mut self) -> Result<(), BMP180Error<Self::Error>> {
-        let id = self.read_id().await?;
-
-        if !Self::validate_id(id) {
-            return Err(BMP180Error::InvalidId(id));
-        }
-
-        let calibration = self.read_calibration().await?;
-
-        self.set_calibration(calibration);
-
-        Ok(())
-    }
-
-    /// Create a new initialized `BMP180` instance.
-    ///
-    /// Initialized instance will have its calibration data set.
-    async fn initialized(
-        mode: Mode,
-        i2c: I2C,
-        delay: DELAY,
-    ) -> Result<Self, BMP180Error<Self::Error>> {
-        let mut bmp180 = <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay);
-
-        bmp180.initialize().await?;
-
-        Ok(bmp180)
-    }
-
-    /// Update temperature in `self`.
-    async fn update_temperature(&mut self) -> Result<(), Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await?;
-
-        self.set_temperature(self.compute_temperature(raw_temperature));
-
-        Ok(())
-    }
-
-    /// Update pressure in `self`.
-    async fn update_pressure(&mut self) -> Result<(), Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await?;
-        let raw_pressure = self.read_raw_pressure().await?;
-
-        self.set_pressure(self.compute_pressure(raw_temperature, raw_pressure));
-
-        Ok(())
-    }
-
-    /// Update both temperature and pressure in `self`.
-    async fn update(&mut self) -> Result<(), Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await?;
-        let raw_pressure = self.read_raw_pressure().await?;
-
-        self.set_temperature(self.compute_temperature(raw_temperature));
-        self.set_pressure(self.compute_pressure(raw_temperature, raw_pressure));
-
-        Ok(())
     }
 }
