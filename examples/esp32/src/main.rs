@@ -13,7 +13,7 @@ use esp_hal::{
 use fugit::RateExtU32;
 
 #[main]
-async fn main(spawner: Spawner) {
+async fn main(_spawner: Spawner) {
     esp_println::logger::init_logger_from_env();
 
     let peripherals = Peripherals::take();
@@ -41,8 +41,6 @@ async fn main(spawner: Spawner) {
 
     log::info!("calibration: {:?}", calibration);
 
-    spawner.spawn(logger()).ok();
-
     loop {
         bmp180.update().await.ok();
 
@@ -52,14 +50,6 @@ async fn main(spawner: Spawner) {
         let pressure = bmp180.pressure();
         log::info!("pressure: {} Pa", pressure);
 
-        Timer::after(Duration::from_secs(3)).await;
-    }
-}
-
-#[embassy_executor::task]
-async fn logger() {
-    loop {
-        // log::info!("up");
         Timer::after(Duration::from_secs(3)).await;
     }
 }
