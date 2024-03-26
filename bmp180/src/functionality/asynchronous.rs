@@ -9,7 +9,7 @@ use super::{BMP180Error, BaseBMP180, PrivateBaseBMP180};
 pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2C, DELAY> {
     type Error;
 
-    /// Read Device ID.
+    /// Read device ID.
     async fn read_id(&mut self) -> Result<u8, Self::Error>;
 
     /// Read calibration data.

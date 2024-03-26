@@ -10,7 +10,7 @@ pub trait BlockingBMP180<I2C, DELAY>:
 {
     type Error;
 
-    /// Read Device ID.
+    /// Read device ID.
     fn read_id(&mut self) -> Result<u8, Self::Error>;
 
     /// Read calibration data.
