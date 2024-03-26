@@ -2,11 +2,11 @@
 
 use crate::device::{calibration::Calibration, mode::Mode};
 
-use super::{BMP180Error, BaseBMP180, PrivateBaseBMP180};
+use super::{BMP180Error, BaseBMP180};
 
 #[allow(private_bounds)]
 #[allow(async_fn_in_trait)]
-pub trait AsyncBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + BaseBMP180<I2C, DELAY> {
+pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     type Error;
 
     /// Read device ID.

@@ -48,7 +48,8 @@ pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
     }
 }
 
-pub trait BaseBMP180<I2C, DELAY>: Sized {
+#[allow(private_bounds)]
+pub trait BaseBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + Sized {
     /// Create a new `BMP180` instance.
     fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self;
 
