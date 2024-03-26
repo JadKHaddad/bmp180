@@ -15,12 +15,6 @@ pub enum BMP180Error<I2CError> {
     InvalidId(u8),
 }
 
-impl<I2CError> From<I2CError> for BMP180Error<I2CError> {
-    fn from(error: I2CError) -> Self {
-        Self::I2C(error)
-    }
-}
-
 impl<I2CError> core::fmt::Debug for BMP180Error<I2CError>
 where
     I2CError: core::fmt::Debug,

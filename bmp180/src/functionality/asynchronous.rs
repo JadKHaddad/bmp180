@@ -1,6 +1,9 @@
 //! Asynchronous functionality.
 
-use crate::device::{calibration::Calibration, mode::Mode};
+use crate::{
+    device::{calibration::Calibration, mode::Mode},
+    tri,
+};
 
 use super::{BMP180Error, BaseBMP180};
 
@@ -25,13 +28,19 @@ pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     ///
     /// Initialized instance will have its calibration data set.
     async fn initialize(&mut self) -> Result<(), BMP180Error<Self::Error>> {
-        let id = self.read_id().await?;
+        let id = match self.read_id().await {
+            Ok(id) => id,
+            Err(err) => return Err(BMP180Error::I2C(err)),
+        };
 
         if !Self::validate_id(id) {
             return Err(BMP180Error::InvalidId(id));
         }
 
-        let calibration = self.read_calibration().await?;
+        let calibration = match self.read_calibration().await {
+            Ok(calibration) => calibration,
+            Err(err) => return Err(BMP180Error::I2C(err)),
+        };
 
         self.set_calibration(calibration);
 
@@ -49,14 +58,14 @@ pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     ) -> Result<Self, BMP180Error<Self::Error>> {
         let mut bmp180 = <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay);
 
-        bmp180.initialize().await?;
+        tri!(bmp180.initialize().await);
 
         Ok(bmp180)
     }
 
     /// Update temperature in `self`.
     async fn update_temperature(&mut self) -> Result<(), Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await?;
+        let raw_temperature = tri!(self.read_raw_temperature().await);
 
         self.set_temperature(self.compute_temperature(raw_temperature));
 
@@ -65,8 +74,8 @@ pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
 
     /// Update pressure in `self`.
     async fn update_pressure(&mut self) -> Result<(), Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await?;
-        let raw_pressure = self.read_raw_pressure().await?;
+        let raw_temperature = tri!(self.read_raw_temperature().await);
+        let raw_pressure = tri!(self.read_raw_pressure().await);
 
         self.set_pressure(self.compute_pressure(raw_temperature, raw_pressure));
 
@@ -75,8 +84,8 @@ pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
 
     /// Update both temperature and pressure in `self`.
     async fn update(&mut self) -> Result<(), Self::Error> {
-        let raw_temperature = self.read_raw_temperature().await?;
-        let raw_pressure = self.read_raw_pressure().await?;
+        let raw_temperature = tri!(self.read_raw_temperature().await);
+        let raw_pressure = tri!(self.read_raw_pressure().await);
 
         self.set_temperature(self.compute_temperature(raw_temperature));
         self.set_pressure(self.compute_pressure(raw_temperature, raw_pressure));
