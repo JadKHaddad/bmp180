@@ -1,9 +1,10 @@
 [package]
 name = "esp32-bmp180-example"
-version = "0.1.0"
+version = "0.0.0"
 authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
+publish = false
 
 [dependencies]
 esp-backtrace = { version = "0.11.0", features = [
@@ -32,7 +33,7 @@ embedded-hal-async = "1.0.0"
 fugit = "0.3.7"
 log = "0.4.20"
 
-bmp180 = { path = "../../" }
+bmp180 = { path = "../../bmp180" }
 
 [profile.dev]
 # Rust debug is too slow. 

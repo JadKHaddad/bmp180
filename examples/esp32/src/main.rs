@@ -2,12 +2,9 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use bmp180::traits::AsyncBMP180;
-use bmp180::BMP180;
-use bmp180::{mode::Mode, traits::BaseBMP180};
+use bmp180::{AsyncBMP180, BaseBMP180, Mode, BMP180};
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use embedded_hal_async::i2c::I2c;
 use esp_backtrace as _;
 use esp_hal::{
     clock::ClockControl, embassy, entry, i2c::I2C, macros::main, peripherals::Peripherals,
@@ -26,10 +23,10 @@ async fn main(spawner: Spawner) {
     let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
-    let mut i2c0 = I2C::new(
+    let i2c0 = I2C::new(
         peripherals.I2C0,
-        io.pins.gpio21,
-        io.pins.gpio22,
+        io.pins.gpio21, // SDA
+        io.pins.gpio22, // SCL
         400.kHz(),
         &clocks,
     );

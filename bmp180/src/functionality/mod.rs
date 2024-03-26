@@ -152,17 +152,16 @@ pub trait BaseBMP180<I2C, DELAY>: Sized {
         let x1 = (x1 * 3038) >> 16;
         let x2 = (-7357 * p) >> 16;
 
-        let p = p + ((x1 + x2 + 3791_i32) >> 4);
-
         #[cfg(feature = "log")]
         {
-            log::debug!("P: {}", p);
+            let p = p + ((x1 + x2 + 3791_i32) >> 4);
+
             log::debug!("X1: {}", x1);
             log::debug!("X2: {}", x2);
             log::debug!("P: {}", p);
         }
 
-        p
+        p + ((x1 + x2 + 3791_i32) >> 4)
     }
 
     /// Pressure in `Pa` at sea level.

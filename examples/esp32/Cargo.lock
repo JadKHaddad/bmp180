@@ -65,7 +65,6 @@ version = "0.1.0"
 dependencies = [
  "embedded-hal-async",
  "libm",
- "log",
 ]
 
 [[package]]
@@ -466,7 +465,7 @@ dependencies = [
 
 [[package]]
 name = "esp32-bmp180-example"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "bmp180",
  "embassy-executor",
