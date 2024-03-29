@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use bmp180::{AsyncBMP180, BaseBMP180, Mode, BMP180};
+use bmp180::{constants::BMP180_I2C_ADDR, AsyncBMP180, BaseBMP180, Mode, BMP180};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
@@ -49,9 +49,14 @@ async fn main(_spawner: Spawner) {
 
     embassy::init(&clocks, timg0);
 
-    let mut bmp180 = BMP180::initialized(Mode::UltraLowPower, i2c_dev1, embassy_time::Delay {})
-        .await
-        .unwrap();
+    let mut bmp180 = BMP180::initialized(
+        BMP180_I2C_ADDR,
+        Mode::UltraLowPower,
+        i2c_dev1,
+        embassy_time::Delay {},
+    )
+    .await
+    .unwrap();
 
     let calibration = bmp180.calibration();
 

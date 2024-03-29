@@ -9,6 +9,7 @@ pub mod mode;
 
 #[derive(Debug, Clone)]
 pub struct BMP180<I2C, DELAY> {
+    addr: u8,
     mode: Mode,
     calibration: Calibration,
     temperature: i32,
@@ -18,6 +19,10 @@ pub struct BMP180<I2C, DELAY> {
 }
 
 impl<I2C, DELAY> BMP180<I2C, DELAY> {
+    fn addr(&self) -> u8 {
+        self.addr
+    }
+
     fn mode(&self) -> Mode {
         self.mode
     }
@@ -42,8 +47,9 @@ impl<I2C, DELAY> PrivateBaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
 }
 
 impl<I2C, DELAY> BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
-    fn new(mode: Mode, i2c: I2C, delay: DELAY) -> Self {
+    fn new(addr: u8, mode: Mode, i2c: I2C, delay: DELAY) -> Self {
         Self {
+            addr,
             mode,
             calibration: Calibration::default(),
             temperature: 0,
@@ -51,6 +57,10 @@ impl<I2C, DELAY> BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
             i2c,
             delay,
         }
+    }
+
+    fn addr(&self) -> u8 {
+        self.addr()
     }
 
     fn mode(&self) -> Mode {
@@ -90,7 +100,7 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(BMP180_I2CADDR, &[BMP180_REGISTER_CHIPID], &mut data)
+                    .write_read(self.addr(), &[BMP180_REGISTER_CHIPID], &mut data)
                     .await
             );
 
@@ -102,7 +112,7 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(BMP180_I2CADDR, &[BMP180_CAL_AC1], &mut data)
+                    .write_read(self.addr(), &[BMP180_CAL_AC1], &mut data)
                     .await
             );
 
@@ -112,7 +122,7 @@ mod impl_async {
         async fn read_raw_temperature(&mut self) -> Result<i16, Self::Error> {
             tri!(
                 self.i2c
-                    .write(BMP180_I2CADDR, &[BMP180_CONTROL, BMP180_READTEMPCMD])
+                    .write(self.addr(), &[BMP180_CONTROL, BMP180_READTEMPCMD])
                     .await
             );
 
@@ -122,7 +132,7 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(BMP180_I2CADDR, &[BMP180_TEMPDATA], &mut data)
+                    .write_read(self.addr(), &[BMP180_TEMPDATA], &mut data)
                     .await
             );
 
@@ -137,7 +147,7 @@ mod impl_async {
             tri!(
                 self.i2c
                     .write(
-                        BMP180_I2CADDR,
+                        self.addr(),
                         &[BMP180_CONTROL, BMP180_READPRESSURECMD + ((mode as u8) << 6)],
                     )
                     .await
@@ -149,7 +159,7 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(BMP180_I2CADDR, &[BMP180_PRESSUREDATA], &mut data)
+                    .write_read(self.addr(), &[BMP180_PRESSUREDATA], &mut data)
                     .await
             );
 
@@ -182,7 +192,7 @@ mod impl_blocking {
 
             tri!(self
                 .i2c
-                .write_read(BMP180_I2CADDR, &[BMP180_REGISTER_CHIPID], &mut data));
+                .write_read(self.addr(), &[BMP180_REGISTER_CHIPID], &mut data));
 
             Ok(data[0])
         }
@@ -192,7 +202,7 @@ mod impl_blocking {
 
             tri!(self
                 .i2c
-                .write_read(BMP180_I2CADDR, &[BMP180_CAL_AC1], &mut data));
+                .write_read(self.addr(), &[BMP180_CAL_AC1], &mut data));
 
             Ok(Calibration::from_slice(&data))
         }
@@ -200,7 +210,7 @@ mod impl_blocking {
         fn read_raw_temperature(&mut self) -> Result<i16, Self::Error> {
             tri!(self
                 .i2c
-                .write(BMP180_I2CADDR, &[BMP180_CONTROL, BMP180_READTEMPCMD]));
+                .write(self.addr(), &[BMP180_CONTROL, BMP180_READTEMPCMD]));
 
             self.delay.delay_ms(5);
 
@@ -208,7 +218,7 @@ mod impl_blocking {
 
             tri!(self
                 .i2c
-                .write_read(BMP180_I2CADDR, &[BMP180_TEMPDATA], &mut data));
+                .write_read(self.addr(), &[BMP180_TEMPDATA], &mut data));
 
             let raw_temperature = ((data[0] as i16) << 8) | data[1] as i16;
 
@@ -219,7 +229,7 @@ mod impl_blocking {
             let mode = self.mode();
 
             tri!(self.i2c.write(
-                BMP180_I2CADDR,
+                self.addr(),
                 &[BMP180_CONTROL, BMP180_READPRESSURECMD + ((mode as u8) << 6)],
             ));
 
@@ -229,7 +239,7 @@ mod impl_blocking {
 
             tri!(self
                 .i2c
-                .write_read(BMP180_I2CADDR, &[BMP180_PRESSUREDATA], &mut data));
+                .write_read(self.addr(), &[BMP180_PRESSUREDATA], &mut data));
 
             let raw_pressure =
                 (((data[0] as i32) << 16) + ((data[1] as i32) << 8) + data[2] as i32)

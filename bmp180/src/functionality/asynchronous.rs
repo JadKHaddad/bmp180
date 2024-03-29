@@ -52,11 +52,12 @@ pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     /// Initialized instance will have its calibration data set.
     /// See [`BaseBMP180::new`](crate::functionality::BaseBMP180) if you want to create an uninitialized instance.
     async fn initialized(
+        addr: u8,
         mode: Mode,
         i2c: I2C,
         delay: DELAY,
     ) -> Result<Self, BMP180Error<Self::Error>> {
-        let mut bmp180 = <Self as BaseBMP180<I2C, DELAY>>::new(mode, i2c, delay);
+        let mut bmp180 = <Self as BaseBMP180<I2C, DELAY>>::new(addr, mode, i2c, delay);
 
         tri!(bmp180.initialize().await);
 

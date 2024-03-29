@@ -1,6 +1,7 @@
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum Mode {
+    #[default]
     UltraLowPower = 0,
     Standard = 1,
     HighResolution = 2,
