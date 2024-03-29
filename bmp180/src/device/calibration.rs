@@ -1,3 +1,5 @@
+//! Calibration data.
+
 #[derive(Debug, Default, Clone)]
 pub struct Calibration {
     pub ac1: i16,

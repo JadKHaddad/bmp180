@@ -1,3 +1,5 @@
+//! Constant addresses and values for the BMP180 sensor.
+
 pub const BMP180_I2C_ADDR: u8 = 0x77;
 
 pub(crate) const BMP180_ID: u8 = 0x55;

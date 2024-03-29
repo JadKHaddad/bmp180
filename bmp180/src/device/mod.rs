@@ -1,34 +1,138 @@
 //! Device definition and implementation.
 
-use crate::functionality::{BaseBMP180, PrivateBaseBMP180};
+use crate::{
+    constants::*,
+    functionality::{BaseBMP180, PrivateBaseBMP180, PrivateUninitBMP180},
+};
 
 use self::{calibration::Calibration, mode::Mode};
 
 pub mod calibration;
 pub mod mode;
 
+/// Builder for an uninitialized BMP180 device.
+///
+/// Helpful for using default values.
 #[derive(Debug, Clone)]
-pub struct BMP180<I2C, DELAY> {
-    addr: u8,
-    mode: Mode,
-    calibration: Calibration,
-    temperature: i32,
-    pressure: i32,
-    i2c: I2C,
-    delay: DELAY,
+pub struct UninitBMP180Builder<I2C, DELAY> {
+    inner: UninitBMP180<I2C, DELAY>,
 }
 
+impl<I2C, DELAY> UninitBMP180Builder<I2C, DELAY> {
+    pub fn new(i2c: I2C, delay: DELAY) -> Self {
+        Self {
+            inner: UninitBMP180::new(BMP180_I2C_ADDR, Mode::default(), i2c, delay),
+        }
+    }
+
+    pub fn addr(mut self, addr: u8) -> Self {
+        self.inner.addr = addr;
+        self
+    }
+
+    pub fn mode(mut self, mode: Mode) -> Self {
+        self.inner.mode = mode;
+        self
+    }
+
+    pub fn build(self) -> UninitBMP180<I2C, DELAY> {
+        self.inner
+    }
+}
+
+/// Uninitialized BMP180 device.
+///
+/// This struct is used to initialize the BMP180 device using:
+/// - [`AsyncInitBMP180`](crate::functionality::asynchronous::AsyncInitBMP180)
+/// - [`BlockingInitBMP180`](crate::functionality::blocking::BlockingInitBMP180)
+#[derive(Debug, Clone)]
+pub struct UninitBMP180<I2C, DELAY> {
+    pub addr: u8,
+    pub mode: Mode,
+    pub i2c: I2C,
+    pub delay: DELAY,
+}
+
+impl<I2C, DELAY> UninitBMP180<I2C, DELAY> {
+    pub fn new(addr: u8, mode: Mode, i2c: I2C, delay: DELAY) -> Self {
+        Self {
+            addr,
+            mode,
+            i2c,
+            delay,
+        }
+    }
+
+    pub fn builder(i2c: I2C, delay: DELAY) -> UninitBMP180Builder<I2C, DELAY> {
+        UninitBMP180Builder::new(i2c, delay)
+    }
+
+    pub fn into_parts(self) -> (u8, Mode, I2C, DELAY) {
+        (self.addr, self.mode, self.i2c, self.delay)
+    }
+}
+
+impl<I2C, DELAY> PrivateUninitBMP180<I2C, DELAY> for UninitBMP180<I2C, DELAY> {
+    fn into_parts(self) -> (u8, Mode, I2C, DELAY) {
+        self.into_parts()
+    }
+}
+
+/// BMP180 device.
+///
+/// Represents an initialized BMP180 device valid id and its calibration data set.
+/// Initialized using:
+/// - [`AsyncInitBMP180`](crate::functionality::asynchronous::AsyncInitBMP180)
+/// - [`BlockingInitBMP180`](crate::functionality::blocking::BlockingInitBMP180)
+#[derive(Debug, Clone)]
+pub struct BMP180<I2C, DELAY> {
+    pub(crate) addr: u8,
+    pub(crate) mode: Mode,
+    pub(crate) calibration: Calibration,
+    pub(crate) temperature: i32,
+    pub(crate) pressure: i32,
+    pub(crate) i2c: I2C,
+    pub(crate) delay: DELAY,
+}
+
+#[cfg(feature = "i-know-what-i-am-doing")]
 impl<I2C, DELAY> BMP180<I2C, DELAY> {
-    fn addr(&self) -> u8 {
-        self.addr
+    /// Split the BMP180 device into its parts.
+    ///
+    /// Only available when the `i-know-what-i-am-doing` feature is enabled.
+    pub fn into_parts(self) -> (u8, Mode, Calibration, i32, i32, I2C, DELAY) {
+        (
+            self.addr,
+            self.mode,
+            self.calibration,
+            self.temperature,
+            self.pressure,
+            self.i2c,
+            self.delay,
+        )
     }
 
-    fn mode(&self) -> Mode {
-        self.mode
-    }
-
-    fn calibration(&self) -> &Calibration {
-        &self.calibration
+    /// Create a BMP180 device from its parts.
+    ///
+    /// Only available when the `i-know-what-i-am-doing` feature is enabled.
+    pub fn from_parts(
+        addr: u8,
+        mode: Mode,
+        calibration: Calibration,
+        temperature: i32,
+        pressure: i32,
+        i2c: I2C,
+        delay: DELAY,
+    ) -> Self {
+        Self {
+            addr,
+            mode,
+            calibration,
+            temperature,
+            pressure,
+            i2c,
+            delay,
+        }
     }
 }
 
@@ -40,35 +144,19 @@ impl<I2C, DELAY> PrivateBaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
     fn set_pressure(&mut self, pressure: i32) {
         self.pressure = pressure;
     }
-
-    fn set_calibration(&mut self, calibration: Calibration) {
-        self.calibration = calibration;
-    }
 }
 
 impl<I2C, DELAY> BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
-    fn new(addr: u8, mode: Mode, i2c: I2C, delay: DELAY) -> Self {
-        Self {
-            addr,
-            mode,
-            calibration: Calibration::default(),
-            temperature: 0,
-            pressure: 0,
-            i2c,
-            delay,
-        }
-    }
-
     fn addr(&self) -> u8 {
-        self.addr()
+        self.addr
     }
 
     fn mode(&self) -> Mode {
-        self.mode()
+        self.mode
     }
 
     fn calibration(&self) -> &Calibration {
-        self.calibration()
+        &self.calibration
     }
 
     fn temperature(&self) -> i32 {
@@ -84,11 +172,15 @@ impl<I2C, DELAY> BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
 mod impl_async {
     use embedded_hal_async::{delay::DelayNs, i2c::I2c};
 
-    use crate::{constants::*, functionality::asynchronous::AsyncBMP180, tri};
+    use crate::{
+        constants::*,
+        functionality::asynchronous::{AsyncBMP180, AsyncInitBMP180},
+        tri, BaseBMP180,
+    };
 
-    use super::{calibration::Calibration, BMP180};
+    use super::{calibration::Calibration, UninitBMP180, BMP180};
 
-    impl<I2C, DELAY> AsyncBMP180<I2C, DELAY> for BMP180<I2C, DELAY>
+    impl<I2C, DELAY> AsyncInitBMP180<I2C, DELAY> for UninitBMP180<I2C, DELAY>
     where
         I2C: I2c,
         DELAY: DelayNs,
@@ -100,7 +192,7 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(self.addr(), &[BMP180_REGISTER_CHIPID], &mut data)
+                    .write_read(self.addr, &[BMP180_REGISTER_CHIPID], &mut data)
                     .await
             );
 
@@ -112,12 +204,20 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(self.addr(), &[BMP180_CAL_AC1], &mut data)
+                    .write_read(self.addr, &[BMP180_CAL_AC1], &mut data)
                     .await
             );
 
             Ok(Calibration::from_slice(&data))
         }
+    }
+
+    impl<I2C, DELAY> AsyncBMP180<I2C, DELAY> for BMP180<I2C, DELAY>
+    where
+        I2C: I2c,
+        DELAY: DelayNs,
+    {
+        type Error = I2C::Error;
 
         async fn read_raw_temperature(&mut self) -> Result<i16, Self::Error> {
             tri!(
@@ -176,7 +276,7 @@ mod impl_async {
 mod impl_blocking {
     use embedded_hal::{delay::DelayNs, i2c::I2c};
 
-    use crate::{constants::*, functionality::blocking::BlockingBMP180, tri};
+    use crate::{constants::*, functionality::blocking::BlockingBMP180, tri, BaseBMP180};
 
     use super::{calibration::Calibration, BMP180};
 

@@ -1,11 +1,8 @@
 //! Blocking functionality.
 
-use crate::{
-    device::{calibration::Calibration, mode::Mode},
-    tri,
-};
+use crate::{device::calibration::Calibration, tri, BMP180};
 
-use super::{BMP180Error, BaseBMP180};
+use super::{BMP180Error, BaseBMP180, PrivateUninitBMP180};
 
 #[allow(private_bounds)]
 pub trait BlockingBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
@@ -22,46 +19,6 @@ pub trait BlockingBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
 
     /// Read raw pressure.
     fn read_raw_pressure(&mut self) -> Result<i32, Self::Error>;
-
-    /// Initialize `BMP180` instance.
-    ///
-    /// Initialized instance will have its calibration data set.
-    fn initialize(&mut self) -> Result<(), BMP180Error<Self::Error>> {
-        let id = match self.read_id() {
-            Ok(id) => id,
-            Err(err) => return Err(BMP180Error::I2C(err)),
-        };
-
-        if !Self::validate_id(id) {
-            return Err(BMP180Error::InvalidId(id));
-        }
-
-        let calibration = match self.read_calibration() {
-            Ok(calibration) => calibration,
-            Err(err) => return Err(BMP180Error::I2C(err)),
-        };
-
-        self.set_calibration(calibration);
-
-        Ok(())
-    }
-
-    /// Create a new initialized `BMP180` instance.
-    ///
-    /// Initialized instance will have its calibration data set.
-    /// See [`BaseBMP180::new`](crate::functionality::BaseBMP180) if you want to create an uninitialized instance.
-    fn initialized(
-        addr: u8,
-        mode: Mode,
-        i2c: I2C,
-        delay: DELAY,
-    ) -> Result<Self, BMP180Error<Self::Error>> {
-        let mut bmp180 = <Self as BaseBMP180<I2C, DELAY>>::new(addr, mode, i2c, delay);
-
-        tri!(bmp180.initialize());
-
-        Ok(bmp180)
-    }
 
     /// Update temperature in `self`.
     fn update_temperature(&mut self) -> Result<(), Self::Error> {
@@ -91,5 +48,46 @@ pub trait BlockingBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
         self.set_pressure(self.compute_pressure(raw_temperature, raw_pressure));
 
         Ok(())
+    }
+}
+
+#[allow(private_bounds)]
+pub trait BlockingInitBMP180<I2C, DELAY>: PrivateUninitBMP180<I2C, DELAY> {
+    type Error;
+
+    /// Read device ID.
+    fn read_id(&mut self) -> Result<u8, Self::Error>;
+
+    /// Read calibration data.
+    fn read_calibration(&mut self) -> Result<Calibration, Self::Error>;
+
+    fn initialize(mut self) -> Result<BMP180<I2C, DELAY>, BMP180Error<Self::Error>> {
+        let id = match self.read_id() {
+            Ok(id) => id,
+            Err(err) => return Err(BMP180Error::I2C(err)),
+        };
+
+        if !Self::validate_id(id) {
+            return Err(BMP180Error::InvalidId(id));
+        }
+
+        let calibration = match self.read_calibration() {
+            Ok(calibration) => calibration,
+            Err(err) => return Err(BMP180Error::I2C(err)),
+        };
+
+        let (addr, mode, i2c, delay) = self.into_parts();
+
+        let bmp180 = BMP180 {
+            addr,
+            mode,
+            calibration,
+            temperature: 0,
+            pressure: 0,
+            i2c,
+            delay,
+        };
+
+        Ok(bmp180)
     }
 }

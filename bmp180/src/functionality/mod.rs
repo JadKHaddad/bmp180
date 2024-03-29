@@ -10,6 +10,7 @@ use crate::{
     device::{calibration::Calibration, mode::Mode},
 };
 
+/// Error type for BMP180 devices.
 pub enum BMP180Error<I2CError> {
     I2C(I2CError),
     InvalidId(u8),
@@ -30,27 +31,32 @@ where
     }
 }
 
-pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
-    fn set_calibration(&mut self, calibration: Calibration);
-
-    fn set_temperature(&mut self, temperature: i32);
-
-    fn set_pressure(&mut self, pressure: i32);
+/// Private functionality for uninitialised BMP180 devices.
+pub(crate) trait PrivateUninitBMP180<I2C, DELAY>: Sized {
+    fn into_parts(self) -> (u8, Mode, I2C, DELAY);
 
     fn validate_id(id: u8) -> bool {
         id == BMP180_ID
     }
 }
 
-#[allow(private_bounds)]
-pub trait BaseBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + Sized {
-    /// Create a new `BMP180` instance.
-    fn new(addr: u8, mode: Mode, i2c: I2C, delay: DELAY) -> Self;
+/// A BMP180 device must be able to set temperature and pressure.
+pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
+    fn set_temperature(&mut self, temperature: i32);
 
+    fn set_pressure(&mut self, pressure: i32);
+}
+
+/// Main functionality for BMP180 devices.
+#[allow(private_bounds)]
+pub trait BaseBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> {
+    /// Device I2C address.
     fn addr(&self) -> u8;
 
+    /// Device operating mode.
     fn mode(&self) -> Mode;
 
+    /// Device calibration data.
     fn calibration(&self) -> &Calibration;
 
     /// True temperature in `0.1 C` according to the calibration data.
@@ -65,8 +71,6 @@ pub trait BaseBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + Sized {
     }
 
     /// Compute B5 value.
-    ///
-    /// Exposed to the public API because why not.
     fn compute_b5(&self, raw_temperature: i16) -> i32 {
         let calibration = self.calibration();
 
@@ -77,8 +81,6 @@ pub trait BaseBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + Sized {
     }
 
     /// Compute true temprature in `0.1 C`.
-    ///
-    /// Exposed to the public API because why not.
     fn compute_temperature(&self, raw_temperature: i16) -> i32 {
         let b5 = self.compute_b5(raw_temperature);
 
@@ -93,8 +95,6 @@ pub trait BaseBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> + Sized {
     }
 
     /// Compute true pressure in `Pa`.
-    ///
-    /// Exposed to the public API because why not.
     fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> i32 {
         let calibration = self.calibration();
         let mode = self.mode();
