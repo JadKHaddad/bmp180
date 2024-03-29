@@ -7,7 +7,7 @@ authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["async"]
+default = ["async", "blocking"]
 async = ["dep:embedded-hal-async"]
 blocking = ["dep:embedded-hal"]
 log = ["dep:log"]

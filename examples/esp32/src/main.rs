@@ -3,14 +3,26 @@
 #![feature(type_alias_impl_trait)]
 
 use bmp180::{AsyncBMP180, BaseBMP180, Mode, BMP180};
+use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
+use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::mutex::Mutex;
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::{
-    clock::ClockControl, embassy, entry, i2c::I2C, macros::main, peripherals::Peripherals,
-    system::SystemExt, timer::TimerGroup, IO,
+    clock::ClockControl,
+    embassy, entry,
+    i2c::I2C,
+    macros::main,
+    peripherals::{Peripherals, I2C0},
+    system::SystemExt,
+    timer::TimerGroup,
+    IO,
 };
 use fugit::RateExtU32;
+use static_cell::StaticCell;
+
+static I2C_BUS: StaticCell<Mutex<NoopRawMutex, I2C<'_, I2C0>>> = StaticCell::new();
 
 #[main]
 async fn main(_spawner: Spawner) {
@@ -31,9 +43,13 @@ async fn main(_spawner: Spawner) {
         &clocks,
     );
 
+    let i2c_bus = Mutex::new(i2c0);
+    let i2c_bus = I2C_BUS.init(i2c_bus);
+    let i2c_dev1 = I2cDevice::new(i2c_bus);
+
     embassy::init(&clocks, timg0);
 
-    let mut bmp180 = BMP180::initialized(Mode::UltraLowPower, i2c0, embassy_time::Delay {})
+    let mut bmp180 = BMP180::initialized(Mode::UltraLowPower, i2c_dev1, embassy_time::Delay {})
         .await
         .unwrap();
 
