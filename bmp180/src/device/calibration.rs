@@ -1,23 +1,36 @@
 //! Calibration data.
 
+/// Calibration data according to the BMP180 datasheet.
 #[derive(Debug, Default, Clone)]
 pub struct Calibration {
+    /// AC1.
     pub ac1: i16,
+    /// AC2.
     pub ac2: i16,
+    /// AC3.
     pub ac3: i16,
+    /// AC4.
     pub ac4: u16,
+    /// AC5.
     pub ac5: u16,
+    /// AC6.
     pub ac6: u16,
 
+    /// B1.
     pub b1: i16,
+    /// B2.
     pub b2: i16,
 
+    /// MB.
     pub mb: i16,
+    /// MC.
     pub mc: i16,
+    /// MD.
     pub md: i16,
 }
 
 impl Calibration {
+    /// Create a new [`Calibration`] instance from a slice.
     pub fn from_slice(slice: &[u8; 22]) -> Self {
         let ac1 = (slice[0] as i16) << 8 | slice[1] as i16;
         let ac2 = (slice[2] as i16) << 8 | slice[3] as i16;

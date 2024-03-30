@@ -1,14 +1,17 @@
 //! Device definition and implementation.
 
 use crate::{
-    constants::*,
     functionality::{BaseBMP180, PrivateBaseBMP180, PrivateUninitBMP180},
+    Address,
 };
 
 use self::{calibration::Calibration, mode::Mode};
 
+pub mod address;
 pub mod calibration;
+pub(crate) mod id;
 pub mod mode;
+pub(crate) mod register;
 
 /// Builder for an uninitialized BMP180 device.
 ///
@@ -19,22 +22,26 @@ pub struct UninitBMP180Builder<I2C, DELAY> {
 }
 
 impl<I2C, DELAY> UninitBMP180Builder<I2C, DELAY> {
+    /// Create a new builder.
     pub fn new(i2c: I2C, delay: DELAY) -> Self {
         Self {
-            inner: UninitBMP180::new(BMP180_I2C_ADDR, Mode::default(), i2c, delay),
+            inner: UninitBMP180::new(Address::default(), Mode::default(), i2c, delay),
         }
     }
 
-    pub fn addr(mut self, addr: u8) -> Self {
+    /// Set the device address.
+    pub fn addr(mut self, addr: Address) -> Self {
         self.inner.addr = addr;
         self
     }
 
+    /// Set the device mode.
     pub fn mode(mut self, mode: Mode) -> Self {
         self.inner.mode = mode;
         self
     }
 
+    /// Build the BMP180 device.
     pub fn build(self) -> UninitBMP180<I2C, DELAY> {
         self.inner
     }
@@ -47,14 +54,19 @@ impl<I2C, DELAY> UninitBMP180Builder<I2C, DELAY> {
 /// - [`BlockingInitBMP180`](crate::functionality::blocking::BlockingInitBMP180)
 #[derive(Debug, Clone)]
 pub struct UninitBMP180<I2C, DELAY> {
-    pub addr: u8,
+    /// Device I2C address.
+    pub addr: Address,
+    /// Device mode.
     pub mode: Mode,
+    /// Device I2C bus.
     pub i2c: I2C,
+    /// Delay provider.
     pub delay: DELAY,
 }
 
 impl<I2C, DELAY> UninitBMP180<I2C, DELAY> {
-    pub fn new(addr: u8, mode: Mode, i2c: I2C, delay: DELAY) -> Self {
+    /// Create a new uninitialized BMP180 device.
+    pub fn new(addr: Address, mode: Mode, i2c: I2C, delay: DELAY) -> Self {
         Self {
             addr,
             mode,
@@ -63,17 +75,23 @@ impl<I2C, DELAY> UninitBMP180<I2C, DELAY> {
         }
     }
 
+    /// Create a new builder.
     pub fn builder(i2c: I2C, delay: DELAY) -> UninitBMP180Builder<I2C, DELAY> {
         UninitBMP180Builder::new(i2c, delay)
     }
 
-    pub fn into_parts(self) -> (u8, Mode, I2C, DELAY) {
+    /// Split the BMP180 device into its parts.
+    pub fn into_parts(self) -> (Address, Mode, I2C, DELAY) {
         (self.addr, self.mode, self.i2c, self.delay)
     }
 }
 
 impl<I2C, DELAY> PrivateUninitBMP180<I2C, DELAY> for UninitBMP180<I2C, DELAY> {
-    fn into_parts(self) -> (u8, Mode, I2C, DELAY) {
+    fn addr(&self) -> Address {
+        self.addr
+    }
+
+    fn into_parts(self) -> (Address, Mode, I2C, DELAY) {
         self.into_parts()
     }
 }
@@ -86,7 +104,7 @@ impl<I2C, DELAY> PrivateUninitBMP180<I2C, DELAY> for UninitBMP180<I2C, DELAY> {
 /// - [`BlockingInitBMP180`](crate::functionality::blocking::BlockingInitBMP180)
 #[derive(Debug, Clone)]
 pub struct BMP180<I2C, DELAY> {
-    pub(crate) addr: u8,
+    pub(crate) addr: Address,
     pub(crate) mode: Mode,
     pub(crate) calibration: Calibration,
     pub(crate) temperature: i32,
@@ -147,7 +165,7 @@ impl<I2C, DELAY> PrivateBaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
 }
 
 impl<I2C, DELAY> BaseBMP180<I2C, DELAY> for BMP180<I2C, DELAY> {
-    fn addr(&self) -> u8 {
+    fn addr(&self) -> Address {
         self.addr
     }
 
@@ -173,8 +191,11 @@ mod impl_async {
     use embedded_hal_async::{delay::DelayNs, i2c::I2c};
 
     use crate::{
-        constants::*,
-        functionality::asynchronous::{AsyncBMP180, AsyncInitBMP180},
+        device::register::Register,
+        functionality::{
+            asynchronous::{AsyncBMP180, AsyncInitBMP180},
+            PrivateUninitBMP180,
+        },
         tri, BaseBMP180,
     };
 
@@ -192,7 +213,7 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(self.addr, &[BMP180_REGISTER_CHIPID], &mut data)
+                    .write_read(self.addr_u8(), &[Register::ChipId as u8], &mut data)
                     .await
             );
 
@@ -204,7 +225,7 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(self.addr, &[BMP180_CAL_AC1], &mut data)
+                    .write_read(self.addr_u8(), &[Register::CalibrationAc1 as u8], &mut data)
                     .await
             );
 
@@ -222,7 +243,10 @@ mod impl_async {
         async fn read_raw_temperature(&mut self) -> Result<i16, Self::Error> {
             tri!(
                 self.i2c
-                    .write(self.addr(), &[BMP180_CONTROL, BMP180_READTEMPCMD])
+                    .write(
+                        self.addr_u8(),
+                        &[Register::Control as u8, Register::ReadTempCmd as u8]
+                    )
                     .await
             );
 
@@ -232,7 +256,11 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(self.addr(), &[BMP180_TEMPDATA], &mut data)
+                    .write_read(
+                        self.addr_u8(),
+                        &[Register::TempPressureData as u8],
+                        &mut data
+                    )
                     .await
             );
 
@@ -247,8 +275,11 @@ mod impl_async {
             tri!(
                 self.i2c
                     .write(
-                        self.addr(),
-                        &[BMP180_CONTROL, BMP180_READPRESSURECMD + ((mode as u8) << 6)],
+                        self.addr_u8(),
+                        &[
+                            Register::Control as u8,
+                            Register::ReadPressureCmd as u8 + ((mode as u8) << 6)
+                        ],
                     )
                     .await
             );
@@ -259,7 +290,11 @@ mod impl_async {
 
             tri!(
                 self.i2c
-                    .write_read(self.addr(), &[BMP180_PRESSUREDATA], &mut data)
+                    .write_read(
+                        self.addr_u8(),
+                        &[Register::TempPressureData as u8],
+                        &mut data
+                    )
                     .await
             );
 
@@ -276,7 +311,9 @@ mod impl_async {
 mod impl_blocking {
     use embedded_hal::{delay::DelayNs, i2c::I2c};
 
-    use crate::{constants::*, functionality::blocking::BlockingBMP180, tri, BaseBMP180};
+    use crate::{
+        device::register::Register, functionality::blocking::BlockingBMP180, tri, BaseBMP180,
+    };
 
     use super::{calibration::Calibration, BMP180};
 
@@ -292,7 +329,7 @@ mod impl_blocking {
 
             tri!(self
                 .i2c
-                .write_read(self.addr(), &[BMP180_REGISTER_CHIPID], &mut data));
+                .write_read(self.addr_u8(), &[Register::ChipId as u8], &mut data));
 
             Ok(data[0])
         }
@@ -302,23 +339,26 @@ mod impl_blocking {
 
             tri!(self
                 .i2c
-                .write_read(self.addr(), &[BMP180_CAL_AC1], &mut data));
+                .write_read(self.addr_u8(), &[Register::CalibrationAc1 as u8], &mut data));
 
             Ok(Calibration::from_slice(&data))
         }
 
         fn read_raw_temperature(&mut self) -> Result<i16, Self::Error> {
-            tri!(self
-                .i2c
-                .write(self.addr(), &[BMP180_CONTROL, BMP180_READTEMPCMD]));
+            tri!(self.i2c.write(
+                self.addr_u8(),
+                &[Register::Control as u8, Register::ReadTempCmd as u8]
+            ));
 
             self.delay.delay_ms(5);
 
             let mut data = [0u8; 2];
 
-            tri!(self
-                .i2c
-                .write_read(self.addr(), &[BMP180_TEMPDATA], &mut data));
+            tri!(self.i2c.write_read(
+                self.addr_u8(),
+                &[Register::TempPressureData as u8],
+                &mut data
+            ));
 
             let raw_temperature = ((data[0] as i16) << 8) | data[1] as i16;
 
@@ -329,17 +369,22 @@ mod impl_blocking {
             let mode = self.mode();
 
             tri!(self.i2c.write(
-                self.addr(),
-                &[BMP180_CONTROL, BMP180_READPRESSURECMD + ((mode as u8) << 6)],
+                self.addr_u8(),
+                &[
+                    Register::Control as u8,
+                    Register::ReadPressureCmd as u8 + ((mode as u8) << 6)
+                ],
             ));
 
             self.delay.delay_ms(mode.delay_ms());
 
             let mut data = [0u8; 3];
 
-            tri!(self
-                .i2c
-                .write_read(self.addr(), &[BMP180_PRESSUREDATA], &mut data));
+            tri!(self.i2c.write_read(
+                self.addr_u8(),
+                &[Register::TempPressureData as u8],
+                &mut data
+            ));
 
             let raw_pressure =
                 (((data[0] as i32) << 16) + ((data[1] as i32) << 8) + data[2] as i32)

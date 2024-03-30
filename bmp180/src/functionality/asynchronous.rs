@@ -4,9 +4,13 @@ use crate::{device::calibration::Calibration, tri, BMP180};
 
 use super::{BMP180Error, BaseBMP180, PrivateUninitBMP180};
 
+/// Asynchronous functionality.
+///
+/// Bring this trait into scope to enable asynchronous functionality for BMP180 devices.
 #[allow(private_bounds)]
 #[allow(async_fn_in_trait)]
 pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
+    /// Error type that can occur during asynchronous operations.
     type Error;
 
     /// Read raw temperature.
@@ -46,9 +50,13 @@ pub trait AsyncBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     }
 }
 
+/// Asynchronous functionality for uninitialized BMP180 devices
+///
+/// Bring this trait into scope to enable asynchronous initialization for BMP180 devices.
 #[allow(private_bounds)]
 #[allow(async_fn_in_trait)]
 pub trait AsyncInitBMP180<I2C, DELAY>: PrivateUninitBMP180<I2C, DELAY> {
+    /// Error type that can occur during initialization.
     type Error;
 
     /// Read device ID.
@@ -57,6 +65,7 @@ pub trait AsyncInitBMP180<I2C, DELAY>: PrivateUninitBMP180<I2C, DELAY> {
     /// Read calibration data.
     async fn read_calibration(&mut self) -> Result<Calibration, Self::Error>;
 
+    /// Initialize BMP180 device.
     async fn initialize(mut self) -> Result<BMP180<I2C, DELAY>, BMP180Error<Self::Error>> {
         let id = match self.read_id().await {
             Ok(id) => id,

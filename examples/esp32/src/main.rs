@@ -57,7 +57,7 @@ async fn main(_spawner: Spawner) {
         .unwrap();
 
     // let mut bmp180 = UninitBMP180::new(
-    //     bmp180::constants::BMP180_I2C_ADDR,
+    //     bmp180::Address::Default,
     //     Mode::UltraLowPower,
     //     i2c_dev1,
     //     embassy_time::Delay {},

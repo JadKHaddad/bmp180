@@ -4,8 +4,12 @@ use crate::{device::calibration::Calibration, tri, BMP180};
 
 use super::{BMP180Error, BaseBMP180, PrivateUninitBMP180};
 
+/// Blocking functionality.
+///
+/// Bring this trait into scope to enable blocking functionality for BMP180 devices.
 #[allow(private_bounds)]
 pub trait BlockingBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
+    /// Error type that can occur during blocking operations.
     type Error;
 
     /// Read device ID.
@@ -51,8 +55,12 @@ pub trait BlockingBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     }
 }
 
+/// Blocking functionality for uninitialized BMP180 devices
+///
+/// Bring this trait into scope to enable blocking initialization for BMP180 devices.
 #[allow(private_bounds)]
 pub trait BlockingInitBMP180<I2C, DELAY>: PrivateUninitBMP180<I2C, DELAY> {
+    /// Error type that can occur during initialization.
     type Error;
 
     /// Read device ID.
@@ -61,6 +69,7 @@ pub trait BlockingInitBMP180<I2C, DELAY>: PrivateUninitBMP180<I2C, DELAY> {
     /// Read calibration data.
     fn read_calibration(&mut self) -> Result<Calibration, Self::Error>;
 
+    /// Initialize BMP180 device.
     fn initialize(mut self) -> Result<BMP180<I2C, DELAY>, BMP180Error<Self::Error>> {
         let id = match self.read_id() {
             Ok(id) => id,

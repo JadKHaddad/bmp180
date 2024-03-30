@@ -6,13 +6,15 @@ pub mod asynchronous;
 pub mod blocking;
 
 use crate::{
-    constants::BMP180_ID,
-    device::{calibration::Calibration, mode::Mode},
+    device::{calibration::Calibration, id::Id, mode::Mode},
+    Address,
 };
 
 /// Error type for BMP180 devices.
 pub enum BMP180Error<I2CError> {
+    /// I2C error.
     I2C(I2CError),
+    /// Invalid device ID.
     InvalidId(u8),
 }
 
@@ -25,7 +27,9 @@ where
             Self::I2C(err) => write!(f, "I2C error: {err:?}"),
             Self::InvalidId(id) => write!(
                 f,
-                "Invalid ID. Expected 0x{BMP180_ID:02X}, found 0x{id:02X}"
+                "Invalid ID. Expected 0x{:02X}, found 0x{:02X}",
+                Id::Valid as u8,
+                id
             ),
         }
     }
@@ -33,17 +37,29 @@ where
 
 /// Private functionality for uninitialised BMP180 devices.
 pub(crate) trait PrivateUninitBMP180<I2C, DELAY>: Sized {
-    fn into_parts(self) -> (u8, Mode, I2C, DELAY);
+    /// Device I2C address.
+    fn addr(&self) -> Address;
 
+    /// Device I2C address as `u8`.
+    fn addr_u8(&self) -> u8 {
+        self.addr().into()
+    }
+
+    /// Split device into parts.
+    fn into_parts(self) -> (Address, Mode, I2C, DELAY);
+
+    /// Validate device ID.
     fn validate_id(id: u8) -> bool {
-        id == BMP180_ID
+        Id::is_valid(id)
     }
 }
 
 /// A BMP180 device must be able to set temperature and pressure.
 pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
+    /// Set temperature.
     fn set_temperature(&mut self, temperature: i32);
 
+    /// Set pressure.
     fn set_pressure(&mut self, pressure: i32);
 }
 
@@ -51,7 +67,12 @@ pub(crate) trait PrivateBaseBMP180<I2C, DELAY> {
 #[allow(private_bounds)]
 pub trait BaseBMP180<I2C, DELAY>: PrivateBaseBMP180<I2C, DELAY> {
     /// Device I2C address.
-    fn addr(&self) -> u8;
+    fn addr(&self) -> Address;
+
+    /// Device I2C address as `u8`.
+    fn addr_u8(&self) -> u8 {
+        self.addr().into()
+    }
 
     /// Device operating mode.
     fn mode(&self) -> Mode;

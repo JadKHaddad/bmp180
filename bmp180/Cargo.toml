@@ -3,6 +3,10 @@ name = "bmp180"
 version = "0.1.0"
 edition = "2021"
 authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
+description = "A platform agnostic driver to interface with the BMP180 barometric pressure sensor."
+repository = "https://github.com/JadKHaddad/bmp180"
+license = "MIT OR Apache-2.0"
+keywords = ["bmp180", "i2c", "embedded-hal", "no-std", "embedded"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
