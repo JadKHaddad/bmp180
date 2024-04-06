@@ -1,4 +1,4 @@
-//! A platform agnostic driver to interface with the BMP180 (pressure sensor) using the [`embedded-hal`](embedded_hal) and [`embedded-hal-async`](embedded_hal_async) traits.
+//! A platform agnostic driver to interface with the `BMP180` (pressure sensor) using the [`embedded-hal`](embedded_hal) and [`embedded-hal-async`](embedded_hal_async) traits.
 //!
 //! # Features
 //! The following features are available:
