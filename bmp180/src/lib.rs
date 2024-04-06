@@ -20,7 +20,7 @@ pub mod functionality;
 pub use crate::device::address::Address;
 pub use crate::device::calibration::Calibration;
 pub use crate::device::mode::Mode;
-pub use crate::device::{UninitBMP180, BMP180};
+pub use crate::device::{UninitBMP180, UninitBMP180Builder, BMP180};
 
 pub use crate::functionality::BMP180Error;
 pub use crate::functionality::BaseBMP180;
