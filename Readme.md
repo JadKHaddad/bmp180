@@ -1,6 +1,6 @@
 # BMP180
 
-A platform agnostic driver to interface with the BMP180 (pressure sensor) using the [`embedded-hal`](https://crates.io/crates/embedded-hal) and [`embedded-hal-async`](https://crates.io/crates/embedded-hal-async) traits.
+A platform agnostic driver to interface with the `BMP180` (pressure sensor) using the [`embedded-hal`](https://crates.io/crates/embedded-hal) and [`embedded-hal-async`](https://crates.io/crates/embedded-hal-async) traits.
 
 ## Features
 The following features are available:
