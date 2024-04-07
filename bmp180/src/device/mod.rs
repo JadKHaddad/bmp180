@@ -118,7 +118,7 @@ impl<I2C, DELAY> BMP180<I2C, DELAY> {
     /// Split the BMP180 device into its parts.
     ///
     /// Only available when the `i-know-what-i-am-doing` feature is enabled.
-    pub fn into_parts(self) -> (u8, Mode, Calibration, i32, i32, I2C, DELAY) {
+    pub fn into_parts(self) -> (Address, Mode, Calibration, i32, i32, I2C, DELAY) {
         (
             self.addr,
             self.mode,
@@ -134,7 +134,7 @@ impl<I2C, DELAY> BMP180<I2C, DELAY> {
     ///
     /// Only available when the `i-know-what-i-am-doing` feature is enabled.
     pub fn from_parts(
-        addr: u8,
+        addr: Address,
         mode: Mode,
         calibration: Calibration,
         temperature: i32,
