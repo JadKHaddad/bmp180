@@ -36,7 +36,9 @@ fugit = "0.3.7"
 log = "0.4.20"
 static_cell = "2.0.0"
 
-bmp180 = { path = "../../bmp180" }
+bmp180 = { path = "../../bmp180", default-features = false, features = [
+    "async",
+] }
 
 [profile.dev]
 # Rust debug is too slow. 
