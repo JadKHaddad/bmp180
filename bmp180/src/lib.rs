@@ -30,7 +30,7 @@ pub use crate::functionality::asynchronous::{AsyncBMP180, AsyncInitBMP180};
 #[cfg(feature = "blocking")]
 pub use crate::functionality::blocking::{BlockingBMP180, BlockingInitBMP180};
 
-// #[cfg(feature = "fuzz")]
+#[cfg(feature = "fuzz")]
 pub mod fuzz;
 
 /// Our custom `try!` macro aka `?`, to get rid of [`core::convert::From`]/[`core::convert::Into`] used by the `?` operator.
