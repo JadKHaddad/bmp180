@@ -12,12 +12,6 @@ pub trait BlockingBMP180<I2C, DELAY>: BaseBMP180<I2C, DELAY> {
     /// Error type that can occur during blocking operations.
     type Error;
 
-    /// Read device ID.
-    fn read_id(&mut self) -> Result<u8, Self::Error>;
-
-    /// Read calibration data.
-    fn read_calibration(&mut self) -> Result<Calibration, Self::Error>;
-
     /// Read raw temperature.
     fn read_raw_temperature(&mut self) -> Result<i16, Self::Error>;
 

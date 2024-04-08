@@ -15,6 +15,7 @@ async = ["dep:embedded-hal-async"]
 blocking = ["dep:embedded-hal"]
 log = ["dep:log"]
 i-know-what-i-am-doing = []
+fuzz = ["blocking"]
 
 [dependencies]
 embedded-hal-async = { version = "1.0.0", optional = true }

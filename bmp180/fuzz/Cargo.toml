@@ -18,7 +18,7 @@ members = ["."]
 debug = 1
 
 [[bin]]
-name = "write_read"
-path = "fuzz_targets/write_read.rs"
+name = "init_update"
+path = "fuzz_targets/init_update.rs"
 test = false
 doc = false

@@ -312,12 +312,14 @@ mod impl_blocking {
     use embedded_hal::{delay::DelayNs, i2c::I2c};
 
     use crate::{
-        device::register::Register, functionality::blocking::BlockingBMP180, tri, BaseBMP180,
+        device::register::Register,
+        functionality::{blocking::BlockingBMP180, PrivateUninitBMP180},
+        tri, BaseBMP180, BlockingInitBMP180, UninitBMP180,
     };
 
     use super::{calibration::Calibration, BMP180};
 
-    impl<I2C, DELAY> BlockingBMP180<I2C, DELAY> for BMP180<I2C, DELAY>
+    impl<I2C, DELAY> BlockingInitBMP180<I2C, DELAY> for UninitBMP180<I2C, DELAY>
     where
         I2C: I2c,
         DELAY: DelayNs,
@@ -343,6 +345,14 @@ mod impl_blocking {
 
             Ok(Calibration::from_slice(&data))
         }
+    }
+
+    impl<I2C, DELAY> BlockingBMP180<I2C, DELAY> for BMP180<I2C, DELAY>
+    where
+        I2C: I2c,
+        DELAY: DelayNs,
+    {
+        type Error = I2C::Error;
 
         fn read_raw_temperature(&mut self) -> Result<i16, Self::Error> {
             tri!(self.i2c.write(
