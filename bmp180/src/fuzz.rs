@@ -47,23 +47,17 @@ impl embedded_hal::i2c::I2c for FuzzI2C<'_> {
         for operation in operations {
             match operation {
                 embedded_hal::i2c::Operation::Write(write) => {
-                    if write[0] == Register::ChipId as u8 {
-                        self.is_id_write = true;
-                    } else {
-                        self.is_id_write = false;
-                    }
+                    self.is_id_write = write[0] == Register::ChipId as u8;
                 }
                 embedded_hal::i2c::Operation::Read(read) => {
                     if self.is_id_write {
                         read[0] = Id::Valid as u8;
+                    } else if self.data.len() == read.len() {
+                        read.copy_from_slice(self.data);
+                    } else if self.data.len() < read.len() {
+                        read[..self.data.len()].copy_from_slice(self.data);
                     } else {
-                        if self.data.len() == read.len() {
-                            read.copy_from_slice(self.data);
-                        } else if self.data.len() < read.len() {
-                            read[..self.data.len()].copy_from_slice(self.data);
-                        } else {
-                            read.copy_from_slice(&self.data[..read.len()]);
-                        }
+                        read.copy_from_slice(&self.data[..read.len()]);
                     }
                 }
             }
