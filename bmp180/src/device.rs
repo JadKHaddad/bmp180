@@ -10,7 +10,9 @@ duplicate! {
     ]
     #[cfg(feature=_FEATURE_)]
     pub mod _MOD_ {
-        use crate::{register::Register, tri, Address, BMP180Error, Calibration, Mode, Id};
+        //! Device definition and implementation.
+
+        use crate::{register::Register, tri, address::Address, error::BMP180Error, calibration::Calibration, mode::Mode, id::Id};
 
         /// Builder for an uninitialized `BMP180` device.
         ///
@@ -171,14 +173,14 @@ duplicate! {
             I2C: _I2C_T_,
             DELAY: _DELAY_T_,
         {
-            /// Split the device into its parts.
-            pub fn release(self) -> (I2C, DELAY) {
-                (self.i2c, self.delay)
-            }
-
             /// Device I2C address.
             pub fn addr(&self) -> Address {
                 self.addr
+            }
+
+            /// Device I2C address as `u8`.
+            fn addr_u8(&self) -> u8 {
+                self.addr.into()
             }
 
             /// Device operating mode.
@@ -311,6 +313,148 @@ duplicate! {
                 let pressure = self.pressure();
 
                 44330.0 * (1.0 - libm::powf(pressure as f32 / sea_level_pressure, 0.1903))
+            }
+
+            /// Read raw temperature.
+            async fn read_raw_temperature(&mut self) -> Result<i16, BMP180Error<I2C::Error>> {
+                tri!(
+                    self.i2c
+                        .write(
+                            self.addr_u8(),
+                            &[Register::Control as u8, Register::ReadTempCmd as u8]
+                        )
+                        _await
+                        .map_err(BMP180Error::I2C)
+                );
+
+                self.delay.delay_ms(5)_await;
+
+                let mut data = [0u8; 2];
+
+                tri!(
+                    self.i2c
+                        .write_read(
+                            self.addr_u8(),
+                            &[Register::TempPressureData as u8],
+                            &mut data
+                        )
+                        _await
+                        .map_err(BMP180Error::I2C)
+                );
+
+                let raw_temperature = ((data[0] as i16) << 8) | data[1] as i16;
+
+                Ok(raw_temperature)
+            }
+
+            /// Read raw pressure.
+            async fn read_raw_pressure(&mut self) -> Result<i32, BMP180Error<I2C::Error>> {
+                let mode = self.mode();
+
+                tri!(
+                    self.i2c
+                        .write(
+                            self.addr_u8(),
+                            &[
+                                Register::Control as u8,
+                                Register::ReadPressureCmd as u8 + ((mode as u8) << 6)
+                            ],
+                        )
+                        _await
+                        .map_err(BMP180Error::I2C)
+                );
+
+                self.delay.delay_ms(mode.delay_ms())_await;
+
+                let mut data = [0u8; 3];
+
+                tri!(
+                    self.i2c
+                        .write_read(
+                            self.addr_u8(),
+                            &[Register::TempPressureData as u8],
+                            &mut data
+                        )
+                        _await
+                        .map_err(BMP180Error::I2C)
+                );
+
+                let raw_pressure =
+                    (((data[0] as i32) << 16) + ((data[1] as i32) << 8) + data[2] as i32)
+                        >> (8 - mode as u8);
+
+                Ok(raw_pressure)
+            }
+
+            /// Update temperature in `self`.
+            pub async fn update_temperature(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
+                let raw_temperature = tri!(self.read_raw_temperature()_await);
+
+                self.temperature = self.compute_temperature(raw_temperature);
+
+                Ok(())
+            }
+
+            /// Update pressure in `self`.
+            pub async fn update_pressure(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
+                let raw_temperature = tri!(self.read_raw_temperature()_await);
+                let raw_pressure = tri!(self.read_raw_pressure()_await);
+
+                self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
+
+                Ok(())
+            }
+
+            /// Update both temperature and pressure in `self`.
+            pub async fn update(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
+                let raw_temperature = tri!(self.read_raw_temperature()_await);
+                let raw_pressure = tri!(self.read_raw_pressure()_await);
+
+                self.temperature = self.compute_temperature(raw_temperature);
+                self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
+
+                Ok(())
+            }
+        }
+
+        #[cfg(feature = "i-know-what-i-am-doing")]
+        impl<I2C, DELAY> BMP180<I2C, DELAY> {
+            /// Split the BMP180 device into its parts.
+            ///
+            /// Only available when the `i-know-what-i-am-doing` feature is enabled.
+            pub fn into_parts(self) -> (Address, Mode, Calibration, i32, i32, I2C, DELAY) {
+                (
+                    self.addr,
+                    self.mode,
+                    self.calibration,
+                    self.temperature,
+                    self.pressure,
+                    self.i2c,
+                    self.delay,
+                )
+            }
+
+            /// Create a BMP180 device from its parts.
+            ///
+            /// Only available when the `i-know-what-i-am-doing` feature is enabled.
+            pub fn from_parts(
+                addr: Address,
+                mode: Mode,
+                calibration: Calibration,
+                temperature: i32,
+                pressure: i32,
+                i2c: I2C,
+                delay: DELAY,
+            ) -> Self {
+                Self {
+                    addr,
+                    mode,
+                    calibration,
+                    temperature,
+                    pressure,
+                    i2c,
+                    delay,
+                }
             }
         }
     }

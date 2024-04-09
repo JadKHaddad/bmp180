@@ -11,26 +11,21 @@
 //! or [`embassy-embedded-hal`](https://crates.io/crates/embassy-embedded-hal) to share the I2C bus.
 
 #![no_std]
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 #![deny(unsafe_code)]
-
-// pub mod device;
-// pub mod functionality;
 
 mod address;
 mod calibration;
-mod device;
+pub mod device;
 mod error;
-mod id;
+pub(crate) mod id;
 mod mode;
 mod register;
 
 pub use crate::address::Address;
 pub use crate::calibration::Calibration;
-pub(crate) use crate::id::Id;
-pub use crate::mode::Mode;
-
 pub use crate::error::BMP180Error;
+pub use crate::mode::Mode;
 
 #[cfg(feature = "fuzz")]
 pub mod fuzz;
