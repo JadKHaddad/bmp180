@@ -1,0 +1,318 @@
+//! Device definition and implementation.
+
+use duplicate::duplicate;
+
+duplicate! {
+    [
+        _FEATURE_       _MOD_       async   _await      _I2C_T_                         _DELAY_T_;
+        ["async"]       [asynch]    [async] [.await]    [embedded_hal_async::i2c::I2c]  [embedded_hal_async::delay::DelayNs];
+        ["blocking"]    [blocking]  []      []          [embedded_hal::i2c::I2c]        [embedded_hal::delay::DelayNs];
+    ]
+    #[cfg(feature=_FEATURE_)]
+    pub mod _MOD_ {
+        use crate::{register::Register, tri, Address, BMP180Error, Calibration, Mode, Id};
+
+        /// Builder for an uninitialized `BMP180` device.
+        ///
+        /// Helpful for using default values.
+        #[derive(Debug, Clone)]
+        pub struct UninitBMP180Builder<I2C, DELAY> {
+            inner: UninitBMP180<I2C, DELAY>,
+        }
+
+        impl<I2C, DELAY> UninitBMP180Builder<I2C, DELAY>
+        where
+            I2C: _I2C_T_,
+            DELAY: _DELAY_T_,
+        {
+            /// Create a new builder.
+            pub fn new(i2c: I2C, delay: DELAY) -> Self {
+                Self {
+                    inner: UninitBMP180::new(Address::default(), Mode::default(), i2c, delay),
+                }
+            }
+
+            /// Set the device address.
+            pub fn addr(mut self, addr: Address) -> Self {
+                self.inner.addr = addr;
+                self
+            }
+
+            /// Set the device mode.
+            pub fn mode(mut self, mode: Mode) -> Self {
+                self.inner.mode = mode;
+                self
+            }
+
+            /// Build the `BMP180` device.
+            pub fn build(self) -> UninitBMP180<I2C, DELAY> {
+                self.inner
+            }
+        }
+
+        /// Uninitialized `BMP180` device.
+        ///
+        /// This struct is used to initialize the `BMP180` device.
+        #[derive(Debug, Clone)]
+        pub struct UninitBMP180<I2C, DELAY> {
+            /// Device I2C address.
+            addr: Address,
+            /// Device mode.
+            mode: Mode,
+            /// Device I2C bus.
+            i2c: I2C,
+            /// Delay provider.
+            delay: DELAY,
+        }
+
+        impl<I2C, DELAY> UninitBMP180<I2C, DELAY>
+        where
+            I2C: _I2C_T_,
+            DELAY: _DELAY_T_,
+        {
+            /// Create a new uninitialized `BMP180` device.
+            pub fn new(addr: Address, mode: Mode, i2c: I2C, delay: DELAY) -> Self {
+                Self {
+                    addr,
+                    mode,
+                    i2c,
+                    delay,
+                }
+            }
+
+            /// Create a new builder.
+            pub fn builder(i2c: I2C, delay: DELAY) -> UninitBMP180Builder<I2C, DELAY> {
+                UninitBMP180Builder::new(i2c, delay)
+            }
+
+            /// Device I2C address as `u8`.
+            fn addr_u8(&self) -> u8 {
+                self.addr.into()
+            }
+
+            /// Read device ID.
+            async fn read_id(&mut self) -> Result<u8, I2C::Error> {
+                let mut data = [0u8; 2];
+
+                tri!(
+                    self.i2c
+                        .write_read(self.addr_u8(), &[Register::ChipId as u8], &mut data)
+                        _await
+                );
+
+                Ok(data[0])
+            }
+
+            /// Validate device ID.
+            fn validate_id(id: u8) -> bool {
+                Id::is_valid(id)
+            }
+
+            /// Read calibration data.
+            async fn read_calibration(&mut self) -> Result<Calibration, I2C::Error> {
+                let mut data = [0u8; 22];
+
+                tri!(
+                    self.i2c
+                        .write_read(self.addr_u8(), &[Register::CalibrationAc1 as u8], &mut data)
+                        _await
+                );
+
+                Ok(Calibration::from_slice(&data))
+            }
+
+            /// Initialize `BMP180` device.
+            pub async fn initialize(mut self) -> Result<BMP180<I2C, DELAY>, BMP180Error<I2C::Error>> {
+                let id = match self.read_id()_await {
+                    Ok(id) => id,
+                    Err(err) => return Err(BMP180Error::I2C(err)),
+                };
+
+
+                if !Self::validate_id(id) {
+                    return Err(BMP180Error::InvalidId(id));
+                }
+
+                let calibration = match self.read_calibration()_await {
+                    Ok(calibration) => calibration,
+                    Err(err) => return Err(BMP180Error::I2C(err)),
+                };
+
+                let bmp180 = BMP180 {
+                    addr: self.addr,
+                    mode: self.mode,
+                    calibration,
+                    temperature: 0,
+                    pressure: 0,
+                    i2c: self.i2c,
+                    delay: self.delay,
+                };
+
+                Ok(bmp180)
+            }
+        }
+
+        /// `BMP180` device.
+        ///
+        /// Represents an initialized BMP180 device valid id and its calibration data set.
+        #[derive(Debug, Clone)]
+        pub struct BMP180<I2C, DELAY> {
+            addr: Address,
+            mode: Mode,
+            calibration: Calibration,
+            temperature: i32,
+            pressure: i32,
+            i2c: I2C,
+            delay: DELAY,
+        }
+
+        impl<I2C, DELAY> BMP180<I2C, DELAY>
+        where
+            I2C: _I2C_T_,
+            DELAY: _DELAY_T_,
+        {
+            /// Split the device into its parts.
+            pub fn release(self) -> (I2C, DELAY) {
+                (self.i2c, self.delay)
+            }
+
+            /// Device I2C address.
+            pub fn addr(&self) -> Address {
+                self.addr
+            }
+
+            /// Device operating mode.
+            pub fn mode(&self) -> Mode {
+                self.mode
+            }
+
+            /// Device calibration data.
+            pub fn calibration(&self) -> &Calibration {
+                &self.calibration
+            }
+
+            /// True temperature in `0.1 C` according to the calibration data.
+            pub fn temperature(&self) -> i32 {
+                self.temperature
+            }
+
+            /// Temperature in Celsius.
+            pub fn temperature_celsius(&self) -> f32 {
+                self.temperature() as f32 / 10.0
+            }
+
+            /// True pressure in `Pa`according to the calibration data.
+            pub fn pressure(&self) -> i32 {
+                self.pressure
+            }
+
+            /// Compute B5 value.
+            fn compute_b5(&self, raw_temperature: i16) -> i32 {
+                let calibration = self.calibration();
+
+                let x1 = ((raw_temperature as i32 - calibration.ac6 as i32) * calibration.ac5 as i32) >> 15;
+                let x2 = ((calibration.mc as i32) << 11) / (x1 + calibration.md as i32);
+
+                x1 + x2
+            }
+
+            /// Compute true temprature in `0.1 C`.
+            fn compute_temperature(&self, raw_temperature: i16) -> i32 {
+                let b5 = self.compute_b5(raw_temperature);
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("Computing temperature");
+                    log::debug!("Raw temperature: {}", raw_temperature);
+                    log::debug!("B5: {}", b5);
+                }
+
+                (b5 + 8) >> 4
+            }
+
+            /// Compute true pressure in `Pa`.
+            fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> i32 {
+                let calibration = self.calibration();
+                let mode = self.mode();
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("Computing pressure");
+                    log::debug!("Raw temperature: {}", raw_temperature);
+                    log::debug!("Raw pressure: {}", raw_pressure);
+                }
+
+                let b5 = self.compute_b5(raw_temperature);
+
+                let b6 = b5 - 4000;
+                let x1 = (calibration.b2 as i32 * ((b6 * b6) >> 12)) >> 11;
+                let x2 = (calibration.ac2 as i32 * b6) >> 11;
+                let x3 = x1 + x2;
+                let b3 = ((((calibration.ac1 as i32) * 4 + x3) << mode as u8) + 2) / 4;
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("B5: {}", b5);
+                    log::debug!("B6: {}", b6);
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("X3: {}", x3);
+                    log::debug!("B3: {}", b3);
+                }
+
+                let x1 = (calibration.ac3 as i32 * b6) >> 13;
+                let x2 = (calibration.b1 as i32 * ((b6 * b6) >> 12)) >> 16;
+                let x3 = ((x1 + x2) + 2) >> 2;
+                let b4 = ((calibration.ac4 as u32) * ((x3 + 32768) as u32)) >> 15;
+                let b7 = (raw_pressure as u32 - b3 as u32) * (50000 >> mode as u8);
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("X3: {}", x3);
+                    log::debug!("B4: {}", b4);
+                    log::debug!("B7: {}", b7);
+                }
+
+                let p = if b7 < 0x80000000 {
+                    (b7 * 2) / b4
+                } else {
+                    (b7 / b4) * 2
+                } as i32;
+
+                let x1 = (p >> 8) * (p >> 8);
+                let x1 = (x1 * 3038) >> 16;
+                let x2 = (-7357 * p) >> 16;
+
+                #[cfg(feature = "log")]
+                {
+                    let p = p + ((x1 + x2 + 3791_i32) >> 4);
+
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("P: {}", p);
+                }
+
+                p + ((x1 + x2 + 3791_i32) >> 4)
+            }
+
+            /// Pressure in `Pa` at sea level.
+            pub fn sea_level_pressure(&self, altitude_meters: f32) -> i32 {
+                let pressure = self.pressure() as f32;
+
+                (pressure / libm::powf(1.0 - altitude_meters / 44330.0, 5.255)) as i32
+            }
+
+            /// Altitude in meters.
+            ///
+            /// Standard pressure at sea level is `101325 Pa`.
+            pub fn altitude(&self, sea_level_pressure: f32) -> f32 {
+                let pressure = self.pressure();
+
+                44330.0 * (1.0 - libm::powf(pressure as f32 / sea_level_pressure, 0.1903))
+            }
+        }
+    }
+
+}

@@ -11,26 +11,24 @@
 //! or [`embassy-embedded-hal`](https://crates.io/crates/embassy-embedded-hal) to share the I2C bus.
 
 #![no_std]
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 #![deny(unsafe_code)]
 
-// pub mod device;
-// pub mod functionality;
+pub mod device;
+pub mod functionality;
 
-mod address;
-mod calibration;
-mod device;
-mod error;
-mod id;
-mod mode;
-mod register;
+pub use crate::device::address::Address;
+pub use crate::device::calibration::Calibration;
+pub use crate::device::mode::Mode;
+pub use crate::device::{UninitBMP180, UninitBMP180Builder, BMP180};
 
-pub use crate::address::Address;
-pub use crate::calibration::Calibration;
-pub(crate) use crate::id::Id;
-pub use crate::mode::Mode;
+pub use crate::functionality::BMP180Error;
+pub use crate::functionality::BaseBMP180;
 
-pub use crate::error::BMP180Error;
+#[cfg(feature = "async")]
+pub use crate::functionality::asynchronous::{AsyncBMP180, AsyncInitBMP180};
+#[cfg(feature = "blocking")]
+pub use crate::functionality::blocking::{BlockingBMP180, BlockingInitBMP180};
 
 #[cfg(feature = "fuzz")]
 pub mod fuzz;
