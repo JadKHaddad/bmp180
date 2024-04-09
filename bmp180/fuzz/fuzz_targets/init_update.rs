@@ -1,8 +1,8 @@
 #![no_main]
 
 use bmp180::{
+    blocking::UninitBMP180,
     fuzz::{FuzzDelay, FuzzI2C},
-    BlockingBMP180, BlockingInitBMP180, UninitBMP180,
 };
 
 use libfuzzer_sys::fuzz_target;

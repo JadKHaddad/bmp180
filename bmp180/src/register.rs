@@ -1,6 +1,6 @@
-//! Register addresses for the BMP180 device.
+//! Register addresses for the `BMP180` device.
 
-/// Register addresses for the BMP180 device.
+/// Register addresses for the `BMP180` device.
 #[repr(u8)]
 pub enum Register {
     ChipId = 0xD0,

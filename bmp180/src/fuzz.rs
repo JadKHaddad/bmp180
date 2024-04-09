@@ -2,7 +2,7 @@
 
 use core::convert::Infallible;
 
-use crate::device::{id::Id, register::Register};
+use crate::{id::Id, register::Register};
 
 /// Fuzzing delay.
 ///

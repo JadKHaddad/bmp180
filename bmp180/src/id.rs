@@ -1,6 +1,6 @@
-//! Valid BMP180 device ID.
+//! Valid `BMP180` device ID.
 
-/// Valid BMP180 device ID.
+/// Valid `BMP180` device ID.
 #[repr(u8)]
 pub enum Id {
     Valid = 0x55,

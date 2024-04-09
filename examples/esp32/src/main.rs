@@ -2,12 +2,11 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use bmp180::{AsyncBMP180, AsyncInitBMP180, BaseBMP180, Mode, UninitBMP180};
+use bmp180::{asynch::UninitBMP180, Mode};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
 use embassy_executor::Spawner;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
-use embassy_sync::mutex::Mutex;
-use embassy_time::{Duration, Timer};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
+use embassy_time::{Delay, Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::{
     clock::ClockControl,
@@ -49,7 +48,7 @@ async fn main(_spawner: Spawner) {
 
     embassy::init(&clocks, timg0);
 
-    let mut bmp180 = UninitBMP180::builder(i2c_dev1, embassy_time::Delay {})
+    let mut bmp180 = UninitBMP180::builder(i2c_dev1, Delay {})
         .mode(Mode::UltraHighResolution)
         .build()
         .initialize()

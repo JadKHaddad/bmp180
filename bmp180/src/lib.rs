@@ -16,19 +16,25 @@
 
 mod address;
 mod calibration;
-pub mod device;
+mod device;
 mod error;
 pub(crate) mod id;
 mod mode;
 mod register;
+
+#[cfg(feature = "fuzz")]
+pub mod fuzz;
 
 pub use crate::address::Address;
 pub use crate::calibration::Calibration;
 pub use crate::error::BMP180Error;
 pub use crate::mode::Mode;
 
-#[cfg(feature = "fuzz")]
-pub mod fuzz;
+#[cfg(feature = "async")]
+pub use crate::device::asynch;
+
+#[cfg(feature = "blocking")]
+pub use crate::device::blocking;
 
 /// Our custom `try!` macro aka `?`, to get rid of [`core::convert::From`]/[`core::convert::Into`] used by the `?` operator.
 macro_rules! tri {
