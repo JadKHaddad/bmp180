@@ -1,5 +1,8 @@
+//! Error types for `BMP180` devices.
+
 /// Error type for `BMP180` devices.
-#[derive(Debug)]
+#[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
+#[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
 pub enum BMP180Error<I2CError> {
     /// I2C error.
     I2C(I2CError),

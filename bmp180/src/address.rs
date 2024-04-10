@@ -2,7 +2,9 @@
 
 /// BMP180 device I2C address.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Clone, Copy, Default)]
+#[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
+#[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
 pub enum Address {
     /// Default I2C address.
     #[default]

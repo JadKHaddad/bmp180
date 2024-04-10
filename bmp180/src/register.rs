@@ -2,6 +2,8 @@
 
 /// Register addresses for the `BMP180` device.
 #[repr(u8)]
+#[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
+#[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
 pub enum Register {
     ChipId = 0xD0,
     CalibrationAc1 = 0xAA,

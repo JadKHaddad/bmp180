@@ -4,9 +4,13 @@
 //! The following features are available:
 //! - `blocking`: enables blocking functionality.
 //! - `async`: enables asynchronous functionality.
-//! - `log`: enables debug logging.
+//! - `log`: enables debug logging using the `log` crate.
+//! - `defmt`: enables debug logging using the `defmt` crate.
+//! - `impl-debug`: implements `core::fmt::Debug` for structs and enums.
+//! - `impl-defmt-format`: implements `defmt::Format` for structs and enums.
+//! - `fuzz`: enables the `fuzz` module for fuzz testing.
 //! - `i-know-what-i-am-doing`: allows you to split an initialized device into its parts and put it back together.
-//! Usefull when you want to release the I2C bus and use it for something else.
+//! Useful when you want to release the I2C bus and use it for something else.
 //! This is not recommended though, you can use [`embedded-hal-bus`](https://crates.io/crates/embedded-hal-bus)
 //! or [`embassy-embedded-hal`](https://crates.io/crates/embassy-embedded-hal) to share the I2C bus.
 

@@ -34,7 +34,9 @@ pub mod module {
         /// Builder for an uninitialized `BMP180` device.
         ///
         /// Helpful for using default values.
-        #[derive(Debug, Clone)]
+        #[derive(Clone)]
+        #[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
+        #[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
         pub struct UninitBMP180Builder<I2C, DELAY> {
             inner: UninitBMP180<I2C, DELAY>,
         }
@@ -72,7 +74,9 @@ pub mod module {
         /// Uninitialized `BMP180` device.
         ///
         /// This struct is used to initialize the `BMP180` device.
-        #[derive(Debug, Clone)]
+        #[derive(Clone)]
+        #[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
+        #[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
         pub struct UninitBMP180<I2C, DELAY> {
             /// Device I2C address.
             addr: Address,
@@ -169,7 +173,9 @@ pub mod module {
         /// `BMP180` device.
         ///
         /// Represents an initialized BMP180 device valid id and its calibration data set.
-        #[derive(Debug, Clone)]
+        #[derive(Clone)]
+        #[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
+        #[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
         pub struct BMP180<I2C, DELAY> {
             addr: Address,
             mode: Mode,
@@ -236,6 +242,13 @@ pub mod module {
             fn compute_temperature(&self, raw_temperature: i16) -> i32 {
                 let b5 = self.compute_b5(raw_temperature);
 
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("Computing temperature");
+                    defmt::debug!("Raw temperature: {}", raw_temperature);
+                    defmt::debug!("B5: {}", b5);
+                }
+
                 #[cfg(feature = "log")]
                 {
                     log::debug!("Computing temperature");
@@ -250,6 +263,13 @@ pub mod module {
             fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> i32 {
                 let calibration = self.calibration();
                 let mode = self.mode();
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("Computing pressure");
+                    defmt::debug!("Raw temperature: {}", raw_temperature);
+                    defmt::debug!("Raw pressure: {}", raw_pressure);
+                }
 
                 #[cfg(feature = "log")]
                 {
@@ -266,6 +286,16 @@ pub mod module {
                 let x3 = x1 + x2;
                 let b3 = ((((calibration.ac1 as i32) * 4 + x3) << mode as u8) + 2) / 4;
 
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("B5: {}", b5);
+                    defmt::debug!("B6: {}", b6);
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("X3: {}", x3);
+                    defmt::debug!("B3: {}", b3);
+                }
+
                 #[cfg(feature = "log")]
                 {
                     log::debug!("B5: {}", b5);
@@ -281,6 +311,15 @@ pub mod module {
                 let x3 = ((x1 + x2) + 2) >> 2;
                 let b4 = ((calibration.ac4 as u32) * ((x3 + 32768) as u32)) >> 15;
                 let b7 = (raw_pressure as u32 - b3 as u32) * (50000 >> mode as u8);
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("X3: {}", x3);
+                    defmt::debug!("B4: {}", b4);
+                    defmt::debug!("B7: {}", b7);
+                }
 
                 #[cfg(feature = "log")]
                 {
@@ -300,6 +339,15 @@ pub mod module {
                 let x1 = (p >> 8) * (p >> 8);
                 let x1 = (x1 * 3038) >> 16;
                 let x2 = (-7357 * p) >> 16;
+
+                #[cfg(feature = "defmt")]
+                {
+                    let p = p + ((x1 + x2 + 3791_i32) >> 4);
+
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("P: {}", p);
+                }
 
                 #[cfg(feature = "log")]
                 {

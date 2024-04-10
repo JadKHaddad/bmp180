@@ -1,7 +1,9 @@
 //! Calibration data.
 
 /// Calibration data according to the BMP180 datasheet.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
+#[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
+#[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
 pub struct Calibration {
     /// AC1.
     pub ac1: i16,
