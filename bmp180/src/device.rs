@@ -1,18 +1,35 @@
 //! Device definition and implementation.
 
-use duplicate::duplicate;
+use duplicate::duplicate_item;
 
-duplicate! {
-    [
-        _FEATURE_       _MOD_       async   _await      _I2C_T_                         _DELAY_T_;
-        ["async"]       [asynch]    [async] [.await]    [embedded_hal_async::i2c::I2c]  [embedded_hal_async::delay::DelayNs];
-        ["blocking"]    [blocking]  []      []          [embedded_hal::i2c::I2c]        [embedded_hal::delay::DelayNs];
-    ]
-    #[cfg(feature=_FEATURE_)]
-    pub mod _MOD_ {
-        //! Device definition and implementation.
+/// Identity trait.
+///
+/// Used to trick the compiler while using [`duplicate_item`] to implement `async` and `blocking` versions of the same module.
+/// Using this trait, we can write normal rust code that can also be formatted by `rustfmt`.
+trait Identity: Sized {
+    fn identity(self) -> Self {
+        self
+    }
+}
 
-        use crate::{register::Register, tri, address::Address, error::BMP180Error, calibration::Calibration, mode::Mode, id::Id};
+impl<T: Sized> Identity for T {}
+
+#[duplicate_item(
+    feature_        module        async     await               i2c_trait                       delay_trait;
+    ["async"]       [asynch]      [async]   [await.identity()]  [embedded_hal_async::i2c::I2c]  [embedded_hal_async::delay::DelayNs];
+    ["blocking"]    [blocking]    []        [identity()]        [embedded_hal::i2c::I2c]        [embedded_hal::delay::DelayNs];
+)]
+pub mod module {
+    //! Device definition and implementation.
+
+    #[cfg(feature=feature_)]
+    mod inner {
+        use super::super::Identity;
+
+        use crate::{
+            address::Address, calibration::Calibration, error::BMP180Error, id::Id, mode::Mode,
+            register::Register, tri,
+        };
 
         /// Builder for an uninitialized `BMP180` device.
         ///
@@ -24,8 +41,8 @@ duplicate! {
 
         impl<I2C, DELAY> UninitBMP180Builder<I2C, DELAY>
         where
-            I2C: _I2C_T_,
-            DELAY: _DELAY_T_,
+            I2C: i2c_trait,
+            DELAY: delay_trait,
         {
             /// Create a new builder.
             pub fn new(i2c: I2C, delay: DELAY) -> Self {
@@ -69,8 +86,8 @@ duplicate! {
 
         impl<I2C, DELAY> UninitBMP180<I2C, DELAY>
         where
-            I2C: _I2C_T_,
-            DELAY: _DELAY_T_,
+            I2C: i2c_trait,
+            DELAY: delay_trait,
         {
             /// Create a new uninitialized `BMP180` device.
             pub fn new(addr: Address, mode: Mode, i2c: I2C, delay: DELAY) -> Self {
@@ -99,7 +116,7 @@ duplicate! {
                 tri!(
                     self.i2c
                         .write_read(self.addr_u8(), &[Register::ChipId as u8], &mut data)
-                        _await
+                        .await
                 );
 
                 Ok(data[0])
@@ -117,28 +134,23 @@ duplicate! {
                 tri!(
                     self.i2c
                         .write_read(self.addr_u8(), &[Register::CalibrationAc1 as u8], &mut data)
-                        _await
+                        .await
                 );
 
                 Ok(Calibration::from_slice(&data))
             }
 
             /// Initialize `BMP180` device.
-            pub async fn initialize(mut self) -> Result<BMP180<I2C, DELAY>, BMP180Error<I2C::Error>> {
-                let id = match self.read_id()_await {
-                    Ok(id) => id,
-                    Err(err) => return Err(BMP180Error::I2C(err)),
-                };
-
+            pub async fn initialize(
+                mut self,
+            ) -> Result<BMP180<I2C, DELAY>, BMP180Error<I2C::Error>> {
+                let id = tri!(self.read_id().await.map_err(BMP180Error::I2C));
 
                 if !Self::validate_id(id) {
                     return Err(BMP180Error::InvalidId(id));
                 }
 
-                let calibration = match self.read_calibration()_await {
-                    Ok(calibration) => calibration,
-                    Err(err) => return Err(BMP180Error::I2C(err)),
-                };
+                let calibration = tri!(self.read_calibration().await.map_err(BMP180Error::I2C));
 
                 let bmp180 = BMP180 {
                     addr: self.addr,
@@ -170,8 +182,8 @@ duplicate! {
 
         impl<I2C, DELAY> BMP180<I2C, DELAY>
         where
-            I2C: _I2C_T_,
-            DELAY: _DELAY_T_,
+            I2C: i2c_trait,
+            DELAY: delay_trait,
         {
             /// Device I2C address.
             pub fn addr(&self) -> Address {
@@ -212,7 +224,9 @@ duplicate! {
             fn compute_b5(&self, raw_temperature: i16) -> i32 {
                 let calibration = self.calibration();
 
-                let x1 = ((raw_temperature as i32 - calibration.ac6 as i32) * calibration.ac5 as i32) >> 15;
+                let x1 = ((raw_temperature as i32 - calibration.ac6 as i32)
+                    * calibration.ac5 as i32)
+                    >> 15;
                 let x2 = ((calibration.mc as i32) << 11) / (x1 + calibration.md as i32);
 
                 x1 + x2
@@ -317,30 +331,28 @@ duplicate! {
 
             /// Read raw temperature.
             async fn read_raw_temperature(&mut self) -> Result<i16, BMP180Error<I2C::Error>> {
-                tri!(
-                    self.i2c
-                        .write(
-                            self.addr_u8(),
-                            &[Register::Control as u8, Register::ReadTempCmd as u8]
-                        )
-                        _await
-                        .map_err(BMP180Error::I2C)
-                );
+                tri!(self
+                    .i2c
+                    .write(
+                        self.addr_u8(),
+                        &[Register::Control as u8, Register::ReadTempCmd as u8]
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
 
-                self.delay.delay_ms(5)_await;
+                self.delay.delay_ms(5).await;
 
                 let mut data = [0u8; 2];
 
-                tri!(
-                    self.i2c
-                        .write_read(
-                            self.addr_u8(),
-                            &[Register::TempPressureData as u8],
-                            &mut data
-                        )
-                        _await
-                        .map_err(BMP180Error::I2C)
-                );
+                tri!(self
+                    .i2c
+                    .write_read(
+                        self.addr_u8(),
+                        &[Register::TempPressureData as u8],
+                        &mut data
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
 
                 let raw_temperature = ((data[0] as i16) << 8) | data[1] as i16;
 
@@ -351,33 +363,31 @@ duplicate! {
             async fn read_raw_pressure(&mut self) -> Result<i32, BMP180Error<I2C::Error>> {
                 let mode = self.mode();
 
-                tri!(
-                    self.i2c
-                        .write(
-                            self.addr_u8(),
-                            &[
-                                Register::Control as u8,
-                                Register::ReadPressureCmd as u8 + ((mode as u8) << 6)
-                            ],
-                        )
-                        _await
-                        .map_err(BMP180Error::I2C)
-                );
+                tri!(self
+                    .i2c
+                    .write(
+                        self.addr_u8(),
+                        &[
+                            Register::Control as u8,
+                            Register::ReadPressureCmd as u8 + ((mode as u8) << 6)
+                        ],
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
 
-                self.delay.delay_ms(mode.delay_ms())_await;
+                self.delay.delay_ms(mode.delay_ms()).await;
 
                 let mut data = [0u8; 3];
 
-                tri!(
-                    self.i2c
-                        .write_read(
-                            self.addr_u8(),
-                            &[Register::TempPressureData as u8],
-                            &mut data
-                        )
-                        _await
-                        .map_err(BMP180Error::I2C)
-                );
+                tri!(self
+                    .i2c
+                    .write_read(
+                        self.addr_u8(),
+                        &[Register::TempPressureData as u8],
+                        &mut data
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
 
                 let raw_pressure =
                     (((data[0] as i32) << 16) + ((data[1] as i32) << 8) + data[2] as i32)
@@ -388,7 +398,7 @@ duplicate! {
 
             /// Update temperature in `self`.
             pub async fn update_temperature(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
-                let raw_temperature = tri!(self.read_raw_temperature()_await);
+                let raw_temperature = tri!(self.read_raw_temperature().await);
 
                 self.temperature = self.compute_temperature(raw_temperature);
 
@@ -397,8 +407,8 @@ duplicate! {
 
             /// Update pressure in `self`.
             pub async fn update_pressure(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
-                let raw_temperature = tri!(self.read_raw_temperature()_await);
-                let raw_pressure = tri!(self.read_raw_pressure()_await);
+                let raw_temperature = tri!(self.read_raw_temperature().await);
+                let raw_pressure = tri!(self.read_raw_pressure().await);
 
                 self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
 
@@ -407,8 +417,8 @@ duplicate! {
 
             /// Update both temperature and pressure in `self`.
             pub async fn update(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
-                let raw_temperature = tri!(self.read_raw_temperature()_await);
-                let raw_pressure = tri!(self.read_raw_pressure()_await);
+                let raw_temperature = tri!(self.read_raw_temperature().await);
+                let raw_pressure = tri!(self.read_raw_pressure().await);
 
                 self.temperature = self.compute_temperature(raw_temperature);
                 self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
@@ -419,7 +429,7 @@ duplicate! {
 
         #[cfg(feature = "i-know-what-i-am-doing")]
         impl<I2C, DELAY> BMP180<I2C, DELAY> {
-            /// Split the BMP180 device into its parts.
+            /// Split the `BMP180` device into its parts.
             ///
             /// Only available when the `i-know-what-i-am-doing` feature is enabled.
             pub fn into_parts(self) -> (Address, Mode, Calibration, i32, i32, I2C, DELAY) {
@@ -434,7 +444,7 @@ duplicate! {
                 )
             }
 
-            /// Create a BMP180 device from its parts.
+            /// Create a `BMP180` device from its parts.
             ///
             /// Only available when the `i-know-what-i-am-doing` feature is enabled.
             pub fn from_parts(
@@ -459,4 +469,6 @@ duplicate! {
         }
     }
 
+    #[cfg(feature=feature_)]
+    pub use inner::*;
 }

@@ -10,7 +10,7 @@ keywords = ["bmp180", "i2c", "embedded-hal", "no-std", "embedded"]
 readme = "../README.md"
 
 [features]
-default = ["async", "blocking"]
+default = ["async"]
 async = ["dep:embedded-hal-async"]
 blocking = ["dep:embedded-hal"]
 log = ["dep:log"]
