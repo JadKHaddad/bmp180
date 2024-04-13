@@ -8,11 +8,6 @@ pub enum BMP180Error<I2CError> {
     I2C(I2CError),
     /// Invalid device ID.
     InvalidId(u8),
-    /// Arithmetic error.
-    ///
-    /// Accurs on:
-    /// - Deviding by zero
-    /// - Overflow
-    /// - Underflow
+    /// Arithmetic error, like deviding by zero, overflow, etc.
     Arithmetic,
 }

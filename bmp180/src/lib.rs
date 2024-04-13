@@ -22,7 +22,7 @@ mod address;
 mod calibration;
 mod device;
 mod error;
-pub(crate) mod id;
+mod id;
 mod mode;
 mod register;
 
@@ -32,6 +32,7 @@ pub mod fuzz;
 pub use crate::address::Address;
 pub use crate::calibration::Calibration;
 pub use crate::error::BMP180Error;
+pub use crate::id::Id;
 pub use crate::mode::Mode;
 
 #[cfg(feature = "async")]
