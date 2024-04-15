@@ -1,0 +1,48 @@
+[package]
+name = "blue-pill-bmp180-example"
+version = "0.0.0"
+authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+embedded-hal = "1.0.0"
+embassy-stm32 = { version = "0.1.0", features = [
+    "defmt",
+    "stm32f103c8",
+    "unstable-pac",
+    "memory-x",
+    "time-driver-any",
+] }
+embassy-executor = { version = "0.5.0", features = [
+    "arch-cortex-m",
+    "executor-thread",
+    "defmt",
+    "integrated-timers",
+] }
+embassy-time = { version = "0.3.0", features = ["defmt"] }
+cortex-m = { version = "0.7", features = [
+    "inline-asm",
+    "critical-section-single-core",
+] }
+cortex-m-rt = "0.7"
+panic-probe = { version = "0.3.1", features = ["defmt"] }
+defmt = "0.3"
+defmt-rtt = "0.4"
+bmp180 = { path = "../../bmp180", default-features = false, features = [
+    "blocking",
+    "impl-defmt-format",
+    "impl-debug",
+] }
+
+# Set the default for dependencies.
+[profile.dev.package."*"]
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1
+incremental = false
+debug = true
+lto = true
+opt-level = "s"
