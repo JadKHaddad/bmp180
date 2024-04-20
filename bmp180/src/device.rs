@@ -226,6 +226,157 @@ pub mod module {
                 self.pressure
             }
 
+            /// Pressure in `Pa` at sea level.
+            pub fn sea_level_pressure(&self, altitude_meters: f32) -> i32 {
+                let pressure = self.pressure() as f32;
+
+                (pressure / libm::powf(1.0 - altitude_meters / 44330.0, 5.255)) as i32
+            }
+
+            /// Altitude in meters.
+            ///
+            /// Standard pressure at sea level is `101325 Pa`.
+            pub fn altitude(&self, sea_level_pressure: f32) -> f32 {
+                let pressure = self.pressure();
+
+                44330.0 * (1.0 - libm::powf(pressure as f32 / sea_level_pressure, 0.1903))
+            }
+
+            /// Read raw temperature.
+            async fn read_raw_temperature(&mut self) -> Result<i16, BMP180Error<I2C::Error>> {
+                tri!(self
+                    .i2c
+                    .write(
+                        self.addr_u8(),
+                        &[Register::Control as u8, Register::ReadTempCmd as u8]
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
+
+                self.delay.delay_ms(5).await;
+
+                let mut data = [0u8; 2];
+
+                tri!(self
+                    .i2c
+                    .write_read(
+                        self.addr_u8(),
+                        &[Register::TempPressureData as u8],
+                        &mut data
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
+
+                let raw_temperature = ((data[0] as i16) << 8) | data[1] as i16;
+
+                Ok(raw_temperature)
+            }
+
+            /// Read raw pressure.
+            async fn read_raw_pressure(&mut self) -> Result<i32, BMP180Error<I2C::Error>> {
+                let mode = self.mode();
+
+                tri!(self
+                    .i2c
+                    .write(
+                        self.addr_u8(),
+                        &[
+                            Register::Control as u8,
+                            Register::ReadPressureCmd as u8 + ((mode as u8) << 6)
+                        ],
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
+
+                self.delay.delay_ms(mode.delay_ms()).await;
+
+                let mut data = [0u8; 3];
+
+                tri!(self
+                    .i2c
+                    .write_read(
+                        self.addr_u8(),
+                        &[Register::TempPressureData as u8],
+                        &mut data
+                    )
+                    .await
+                    .map_err(BMP180Error::I2C));
+
+                let raw_pressure =
+                    (((data[0] as i32) << 16) + ((data[1] as i32) << 8) + data[2] as i32)
+                        >> (8 - mode as u8);
+
+                Ok(raw_pressure)
+            }
+
+            /// Update temperature in `self`.
+            pub async fn update_temperature(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
+                let raw_temperature = tri!(self.read_raw_temperature().await);
+
+                self.temperature = tri!(self
+                    .compute_temperature(raw_temperature)
+                    .ok_or(BMP180Error::Arithmetic));
+
+                Ok(())
+            }
+
+            /// Update pressure in `self`.
+            pub async fn update_pressure(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
+                let raw_temperature = tri!(self.read_raw_temperature().await);
+                let raw_pressure = tri!(self.read_raw_pressure().await);
+
+                self.pressure = tri!(self
+                    .compute_pressure(raw_temperature, raw_pressure)
+                    .ok_or(BMP180Error::Arithmetic));
+
+                Ok(())
+            }
+
+            /// Update both temperature and pressure in `self`.
+            pub async fn update(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
+                let raw_temperature = tri!(self.read_raw_temperature().await);
+                let raw_pressure = tri!(self.read_raw_pressure().await);
+
+                self.temperature = tri!(self
+                    .compute_temperature(raw_temperature)
+                    .ok_or(BMP180Error::Arithmetic));
+
+                self.pressure = tri!(self
+                    .compute_pressure(raw_temperature, raw_pressure)
+                    .ok_or(BMP180Error::Arithmetic));
+
+                Ok(())
+            }
+        }
+
+        #[cfg(not(feature = "disable-arithmetic-checks"))]
+        impl<I2C, DELAY> BMP180<I2C, DELAY>
+        where
+            I2C: i2c_trait,
+            DELAY: delay_trait,
+        {
+            /// Compute B5 value.
+            fn compute_b5(&self, raw_temperature: i16) -> Option<i32> {
+                todo!()
+            }
+
+            /// Compute true temprature in `0.1 C`.
+            fn compute_temperature(&self, raw_temperature: i16) -> Option<i32> {
+                todo!()
+            }
+
+            /// Compute true pressure in `Pa`.
+            fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> Option<i32> {
+                todo!()
+            }
+        }
+
+        #[cfg(feature = "disable-arithmetic-checks")]
+        impl<I2C, DELAY> BMP180<I2C, DELAY>
+        where
+            I2C: i2c_trait,
+            DELAY: delay_trait,
+        {
             /// Compute B5 value.
             fn compute_b5(&self, raw_temperature: i16) -> Option<i32> {
                 let calibration = self.calibration();
@@ -359,128 +510,6 @@ pub mod module {
                 }
 
                 Some(p + ((x1 + x2 + 3791_i32) >> 4))
-            }
-
-            /// Pressure in `Pa` at sea level.
-            pub fn sea_level_pressure(&self, altitude_meters: f32) -> i32 {
-                let pressure = self.pressure() as f32;
-
-                (pressure / libm::powf(1.0 - altitude_meters / 44330.0, 5.255)) as i32
-            }
-
-            /// Altitude in meters.
-            ///
-            /// Standard pressure at sea level is `101325 Pa`.
-            pub fn altitude(&self, sea_level_pressure: f32) -> f32 {
-                let pressure = self.pressure();
-
-                44330.0 * (1.0 - libm::powf(pressure as f32 / sea_level_pressure, 0.1903))
-            }
-
-            /// Read raw temperature.
-            async fn read_raw_temperature(&mut self) -> Result<i16, BMP180Error<I2C::Error>> {
-                tri!(self
-                    .i2c
-                    .write(
-                        self.addr_u8(),
-                        &[Register::Control as u8, Register::ReadTempCmd as u8]
-                    )
-                    .await
-                    .map_err(BMP180Error::I2C));
-
-                self.delay.delay_ms(5).await;
-
-                let mut data = [0u8; 2];
-
-                tri!(self
-                    .i2c
-                    .write_read(
-                        self.addr_u8(),
-                        &[Register::TempPressureData as u8],
-                        &mut data
-                    )
-                    .await
-                    .map_err(BMP180Error::I2C));
-
-                let raw_temperature = ((data[0] as i16) << 8) | data[1] as i16;
-
-                Ok(raw_temperature)
-            }
-
-            /// Read raw pressure.
-            async fn read_raw_pressure(&mut self) -> Result<i32, BMP180Error<I2C::Error>> {
-                let mode = self.mode();
-
-                tri!(self
-                    .i2c
-                    .write(
-                        self.addr_u8(),
-                        &[
-                            Register::Control as u8,
-                            Register::ReadPressureCmd as u8 + ((mode as u8) << 6)
-                        ],
-                    )
-                    .await
-                    .map_err(BMP180Error::I2C));
-
-                self.delay.delay_ms(mode.delay_ms()).await;
-
-                let mut data = [0u8; 3];
-
-                tri!(self
-                    .i2c
-                    .write_read(
-                        self.addr_u8(),
-                        &[Register::TempPressureData as u8],
-                        &mut data
-                    )
-                    .await
-                    .map_err(BMP180Error::I2C));
-
-                let raw_pressure =
-                    (((data[0] as i32) << 16) + ((data[1] as i32) << 8) + data[2] as i32)
-                        >> (8 - mode as u8);
-
-                Ok(raw_pressure)
-            }
-
-            /// Update temperature in `self`.
-            pub async fn update_temperature(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
-                let raw_temperature = tri!(self.read_raw_temperature().await);
-
-                self.temperature = tri!(self
-                    .compute_temperature(raw_temperature)
-                    .ok_or(BMP180Error::Arithmetic));
-
-                Ok(())
-            }
-
-            /// Update pressure in `self`.
-            pub async fn update_pressure(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
-                let raw_temperature = tri!(self.read_raw_temperature().await);
-                let raw_pressure = tri!(self.read_raw_pressure().await);
-
-                self.pressure = tri!(self
-                    .compute_pressure(raw_temperature, raw_pressure)
-                    .ok_or(BMP180Error::Arithmetic));
-
-                Ok(())
-            }
-
-            /// Update both temperature and pressure in `self`.
-            pub async fn update(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
-                let raw_temperature = tri!(self.read_raw_temperature().await);
-                let raw_pressure = tri!(self.read_raw_pressure().await);
-
-                self.temperature = tri!(self
-                    .compute_temperature(raw_temperature)
-                    .ok_or(BMP180Error::Arithmetic));
-
-                self.pressure = tri!(self
-                    .compute_pressure(raw_temperature, raw_pressure)
-                    .ok_or(BMP180Error::Arithmetic));
-
-                Ok(())
             }
         }
 
