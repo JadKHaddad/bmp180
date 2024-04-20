@@ -28,7 +28,7 @@ pub mod module {
 
         use crate::{
             address::Address, calibration::Calibration, error::BMP180Error, id::Id, mode::Mode,
-            register::Register, tri,
+            register::Register, tri, tri_opt,
         };
 
         /// Builder for an uninitialized `BMP180` device.
@@ -227,7 +227,7 @@ pub mod module {
             }
 
             /// Compute B5 value.
-            fn compute_b5(&self, raw_temperature: i16) -> i32 {
+            fn compute_b5(&self, raw_temperature: i16) -> Option<i32> {
                 let calibration = self.calibration();
 
                 let x1 = ((raw_temperature as i32 - calibration.ac6 as i32)
@@ -235,12 +235,12 @@ pub mod module {
                     >> 15;
                 let x2 = ((calibration.mc as i32) << 11) / (x1 + calibration.md as i32);
 
-                x1 + x2
+                Some(x1 + x2)
             }
 
             /// Compute true temprature in `0.1 C`.
-            fn compute_temperature(&self, raw_temperature: i16) -> i32 {
-                let b5 = self.compute_b5(raw_temperature);
+            fn compute_temperature(&self, raw_temperature: i16) -> Option<i32> {
+                let b5 = tri_opt!(self.compute_b5(raw_temperature));
 
                 #[cfg(feature = "defmt")]
                 {
@@ -256,11 +256,11 @@ pub mod module {
                     log::debug!("B5: {}", b5);
                 }
 
-                (b5 + 8) >> 4
+                Some((b5 + 8) >> 4)
             }
 
             /// Compute true pressure in `Pa`.
-            fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> i32 {
+            fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> Option<i32> {
                 let calibration = self.calibration();
                 let mode = self.mode();
 
@@ -278,7 +278,7 @@ pub mod module {
                     log::debug!("Raw pressure: {}", raw_pressure);
                 }
 
-                let b5 = self.compute_b5(raw_temperature);
+                let b5 = tri_opt!(self.compute_b5(raw_temperature));
 
                 let b6 = b5 - 4000;
                 let x1 = (calibration.b2 as i32 * ((b6 * b6) >> 12)) >> 11;
@@ -358,7 +358,7 @@ pub mod module {
                     log::debug!("P: {}", p);
                 }
 
-                p + ((x1 + x2 + 3791_i32) >> 4)
+                Some(p + ((x1 + x2 + 3791_i32) >> 4))
             }
 
             /// Pressure in `Pa` at sea level.
@@ -448,7 +448,9 @@ pub mod module {
             pub async fn update_temperature(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
                 let raw_temperature = tri!(self.read_raw_temperature().await);
 
-                self.temperature = self.compute_temperature(raw_temperature);
+                self.temperature = tri!(self
+                    .compute_temperature(raw_temperature)
+                    .ok_or(BMP180Error::Arithmetic));
 
                 Ok(())
             }
@@ -458,7 +460,9 @@ pub mod module {
                 let raw_temperature = tri!(self.read_raw_temperature().await);
                 let raw_pressure = tri!(self.read_raw_pressure().await);
 
-                self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
+                self.pressure = tri!(self
+                    .compute_pressure(raw_temperature, raw_pressure)
+                    .ok_or(BMP180Error::Arithmetic));
 
                 Ok(())
             }
@@ -468,8 +472,13 @@ pub mod module {
                 let raw_temperature = tri!(self.read_raw_temperature().await);
                 let raw_pressure = tri!(self.read_raw_pressure().await);
 
-                self.temperature = self.compute_temperature(raw_temperature);
-                self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
+                self.temperature = tri!(self
+                    .compute_temperature(raw_temperature)
+                    .ok_or(BMP180Error::Arithmetic));
+
+                self.pressure = tri!(self
+                    .compute_pressure(raw_temperature, raw_pressure)
+                    .ok_or(BMP180Error::Arithmetic));
 
                 Ok(())
             }
