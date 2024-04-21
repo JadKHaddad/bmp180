@@ -357,12 +357,47 @@ pub mod module {
         {
             /// Compute B5 value.
             fn compute_b5(&self, raw_temperature: i16) -> Option<i32> {
-                todo!()
+                let calibration = self.calibration();
+
+                let rt = raw_temperature as i32;
+                let ac6 = calibration.ac6 as i32;
+                let ac5 = calibration.ac5 as i32;
+                let mc = calibration.mc as i32;
+                let md = calibration.md as i32;
+
+                let x1 = tri_opt!(rt.checked_sub(ac6));
+                let x1 = tri_opt!(x1.checked_mul(ac5));
+                let x1 = tri_opt!(x1.checked_shr(15));
+
+                let x2 = tri_opt!(mc.checked_shl(11));
+                let x = tri_opt!(x1.checked_add(md));
+                let x2 = tri_opt!(x2.checked_div(x));
+
+                Some(x1 + x2)
             }
 
             /// Compute true temprature in `0.1 C`.
             fn compute_temperature(&self, raw_temperature: i16) -> Option<i32> {
-                todo!()
+                let b5 = tri_opt!(self.compute_b5(raw_temperature));
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("Computing temperature");
+                    defmt::debug!("Raw temperature: {}", raw_temperature);
+                    defmt::debug!("B5: {}", b5);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("Computing temperature");
+                    log::debug!("Raw temperature: {}", raw_temperature);
+                    log::debug!("B5: {}", b5);
+                }
+
+                let temperature = tri_opt!(b5.checked_add(8));
+                let temperature = tri_opt!(temperature.checked_shr(4));
+
+                Some(temperature)
             }
 
             /// Compute true pressure in `Pa`.
@@ -491,10 +526,10 @@ pub mod module {
                 let x1 = (x1 * 3038) >> 16;
                 let x2 = (-7357 * p) >> 16;
 
+                let p = p + ((x1 + x2 + 3791_i32) >> 4);
+
                 #[cfg(feature = "defmt")]
                 {
-                    let p = p + ((x1 + x2 + 3791_i32) >> 4);
-
                     defmt::debug!("X1: {}", x1);
                     defmt::debug!("X2: {}", x2);
                     defmt::debug!("P: {}", p);
@@ -502,14 +537,12 @@ pub mod module {
 
                 #[cfg(feature = "log")]
                 {
-                    let p = p + ((x1 + x2 + 3791_i32) >> 4);
-
                     log::debug!("X1: {}", x1);
                     log::debug!("X2: {}", x2);
                     log::debug!("P: {}", p);
                 }
 
-                Some(p + ((x1 + x2 + 3791_i32) >> 4))
+                Some(p)
             }
         }
 
