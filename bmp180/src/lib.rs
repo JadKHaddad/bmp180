@@ -53,17 +53,4 @@ macro_rules! tri {
     };
 }
 
-/// Just like [`tri!`] but for [`core::option::Option`].
-macro_rules! tri_opt {
-    ($e:expr $(,)?) => {
-        match $e {
-            core::option::Option::Some(value) => value,
-            core::option::Option::None => {
-                return core::option::Option::None;
-            }
-        }
-    };
-}
-
 use tri;
-use tri_opt;
