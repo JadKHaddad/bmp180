@@ -422,7 +422,7 @@ pub mod module {
 
             /// Compute true temprature in `0.1 C`.
             fn compute_temperature(&self, raw_temperature: i16) -> Option<i32> {
-                let b5 = tri_opt!(self.compute_b5(raw_temperature));
+                let b5 = self.compute_b5(raw_temperature)?;
 
                 #[cfg(feature = "defmt")]
                 {
@@ -460,7 +460,7 @@ pub mod module {
                     log::debug!("Raw pressure: {}", raw_pressure);
                 }
 
-                let b5 = tri_opt!(self.compute_b5(raw_temperature));
+                let b5 = self.compute_b5(raw_temperature)?;
 
                 let b6 = b5 - 4000;
                 let x1 = (calibration.b2 as i32 * ((b6 * b6) >> 12)) >> 11;
