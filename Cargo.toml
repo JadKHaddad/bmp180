@@ -1,0 +1,5 @@
+[workspace]
+members = ["bmp180"]
+exclude = ["examples/esp32", "examples/blue-pill"]
+resolver = "2"
+default-members = ["bmp180"]
