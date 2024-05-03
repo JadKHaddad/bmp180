@@ -226,141 +226,6 @@ pub mod module {
                 self.pressure
             }
 
-            /// Compute B5 value.
-            fn compute_b5(&self, raw_temperature: i16) -> i32 {
-                let calibration = self.calibration();
-
-                let x1 = ((raw_temperature as i32 - calibration.ac6 as i32)
-                    * calibration.ac5 as i32)
-                    >> 15;
-                let x2 = ((calibration.mc as i32) << 11) / (x1 + calibration.md as i32);
-
-                x1 + x2
-            }
-
-            /// Compute true temprature in `0.1 C`.
-            fn compute_temperature(&self, raw_temperature: i16) -> i32 {
-                let b5 = self.compute_b5(raw_temperature);
-
-                #[cfg(feature = "defmt")]
-                {
-                    defmt::debug!("Computing temperature");
-                    defmt::debug!("Raw temperature: {}", raw_temperature);
-                    defmt::debug!("B5: {}", b5);
-                }
-
-                #[cfg(feature = "log")]
-                {
-                    log::debug!("Computing temperature");
-                    log::debug!("Raw temperature: {}", raw_temperature);
-                    log::debug!("B5: {}", b5);
-                }
-
-                (b5 + 8) >> 4
-            }
-
-            /// Compute true pressure in `Pa`.
-            fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> i32 {
-                let calibration = self.calibration();
-                let mode = self.mode();
-
-                #[cfg(feature = "defmt")]
-                {
-                    defmt::debug!("Computing pressure");
-                    defmt::debug!("Raw temperature: {}", raw_temperature);
-                    defmt::debug!("Raw pressure: {}", raw_pressure);
-                }
-
-                #[cfg(feature = "log")]
-                {
-                    log::debug!("Computing pressure");
-                    log::debug!("Raw temperature: {}", raw_temperature);
-                    log::debug!("Raw pressure: {}", raw_pressure);
-                }
-
-                let b5 = self.compute_b5(raw_temperature);
-
-                let b6 = b5 - 4000;
-                let x1 = (calibration.b2 as i32 * ((b6 * b6) >> 12)) >> 11;
-                let x2 = (calibration.ac2 as i32 * b6) >> 11;
-                let x3 = x1 + x2;
-                let b3 = ((((calibration.ac1 as i32) * 4 + x3) << mode as u8) + 2) / 4;
-
-                #[cfg(feature = "defmt")]
-                {
-                    defmt::debug!("B5: {}", b5);
-                    defmt::debug!("B6: {}", b6);
-                    defmt::debug!("X1: {}", x1);
-                    defmt::debug!("X2: {}", x2);
-                    defmt::debug!("X3: {}", x3);
-                    defmt::debug!("B3: {}", b3);
-                }
-
-                #[cfg(feature = "log")]
-                {
-                    log::debug!("B5: {}", b5);
-                    log::debug!("B6: {}", b6);
-                    log::debug!("X1: {}", x1);
-                    log::debug!("X2: {}", x2);
-                    log::debug!("X3: {}", x3);
-                    log::debug!("B3: {}", b3);
-                }
-
-                let x1 = (calibration.ac3 as i32 * b6) >> 13;
-                let x2 = (calibration.b1 as i32 * ((b6 * b6) >> 12)) >> 16;
-                let x3 = ((x1 + x2) + 2) >> 2;
-                let b4 = ((calibration.ac4 as u32) * ((x3 + 32768) as u32)) >> 15;
-                let b7 = (raw_pressure as u32 - b3 as u32) * (50000 >> mode as u8);
-
-                #[cfg(feature = "defmt")]
-                {
-                    defmt::debug!("X1: {}", x1);
-                    defmt::debug!("X2: {}", x2);
-                    defmt::debug!("X3: {}", x3);
-                    defmt::debug!("B4: {}", b4);
-                    defmt::debug!("B7: {}", b7);
-                }
-
-                #[cfg(feature = "log")]
-                {
-                    log::debug!("X1: {}", x1);
-                    log::debug!("X2: {}", x2);
-                    log::debug!("X3: {}", x3);
-                    log::debug!("B4: {}", b4);
-                    log::debug!("B7: {}", b7);
-                }
-
-                let p = if b7 < 0x80000000 {
-                    (b7 * 2) / b4
-                } else {
-                    (b7 / b4) * 2
-                } as i32;
-
-                let x1 = (p >> 8) * (p >> 8);
-                let x1 = (x1 * 3038) >> 16;
-                let x2 = (-7357 * p) >> 16;
-
-                #[cfg(feature = "defmt")]
-                {
-                    let p = p + ((x1 + x2 + 3791_i32) >> 4);
-
-                    defmt::debug!("X1: {}", x1);
-                    defmt::debug!("X2: {}", x2);
-                    defmt::debug!("P: {}", p);
-                }
-
-                #[cfg(feature = "log")]
-                {
-                    let p = p + ((x1 + x2 + 3791_i32) >> 4);
-
-                    log::debug!("X1: {}", x1);
-                    log::debug!("X2: {}", x2);
-                    log::debug!("P: {}", p);
-                }
-
-                p + ((x1 + x2 + 3791_i32) >> 4)
-            }
-
             /// Pressure in `Pa` at sea level.
             pub fn sea_level_pressure(&self, altitude_meters: f32) -> i32 {
                 let pressure = self.pressure() as f32;
@@ -448,7 +313,9 @@ pub mod module {
             pub async fn update_temperature(&mut self) -> Result<(), BMP180Error<I2C::Error>> {
                 let raw_temperature = tri!(self.read_raw_temperature().await);
 
-                self.temperature = self.compute_temperature(raw_temperature);
+                self.temperature = tri!(self
+                    .compute_temperature(raw_temperature)
+                    .ok_or(BMP180Error::Arithmetic));
 
                 Ok(())
             }
@@ -458,7 +325,9 @@ pub mod module {
                 let raw_temperature = tri!(self.read_raw_temperature().await);
                 let raw_pressure = tri!(self.read_raw_pressure().await);
 
-                self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
+                self.pressure = tri!(self
+                    .compute_pressure(raw_temperature, raw_pressure)
+                    .ok_or(BMP180Error::Arithmetic));
 
                 Ok(())
             }
@@ -468,10 +337,327 @@ pub mod module {
                 let raw_temperature = tri!(self.read_raw_temperature().await);
                 let raw_pressure = tri!(self.read_raw_pressure().await);
 
-                self.temperature = self.compute_temperature(raw_temperature);
-                self.pressure = self.compute_pressure(raw_temperature, raw_pressure);
+                self.temperature = tri!(self
+                    .compute_temperature(raw_temperature)
+                    .ok_or(BMP180Error::Arithmetic));
+
+                self.pressure = tri!(self
+                    .compute_pressure(raw_temperature, raw_pressure)
+                    .ok_or(BMP180Error::Arithmetic));
 
                 Ok(())
+            }
+        }
+
+        #[cfg(not(feature = "disable-arithmetic-checks"))]
+        impl<I2C, DELAY> BMP180<I2C, DELAY>
+        where
+            I2C: i2c_trait,
+            DELAY: delay_trait,
+        {
+            /// Compute B5 value.
+            fn compute_b5(&self, raw_temperature: i16) -> Option<i32> {
+                let calibration = self.calibration();
+
+                let rt = raw_temperature as i32;
+                let ac6 = calibration.ac6 as i32;
+                let ac5 = calibration.ac5 as i32;
+                let mc = calibration.mc as i32;
+                let md = calibration.md as i32;
+
+                let x1 = rt.checked_sub(ac6)?.checked_mul(ac5)?.checked_shr(15)?;
+
+                let x2 = mc.checked_shl(11)?.checked_div(x1.checked_add(md)?)?;
+
+                Some(x1 + x2)
+            }
+
+            /// Compute true temprature in `0.1 C`.
+            fn compute_temperature(&self, raw_temperature: i16) -> Option<i32> {
+                let b5 = self.compute_b5(raw_temperature)?;
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("Computing temperature");
+                    defmt::debug!("Raw temperature: {}", raw_temperature);
+                    defmt::debug!("B5: {}", b5);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("Computing temperature");
+                    log::debug!("Raw temperature: {}", raw_temperature);
+                    log::debug!("B5: {}", b5);
+                }
+
+                let temperature = b5.checked_add(8)?;
+                let temperature = temperature.checked_shr(4)?;
+
+                Some(temperature)
+            }
+
+            /// Compute true pressure in `Pa`.
+            fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> Option<i32> {
+                let calibration = self.calibration();
+                let mode = self.mode();
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("Computing pressure");
+                    defmt::debug!("Raw temperature: {}", raw_temperature);
+                    defmt::debug!("Raw pressure: {}", raw_pressure);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("Computing pressure");
+                    log::debug!("Raw temperature: {}", raw_temperature);
+                    log::debug!("Raw pressure: {}", raw_pressure);
+                }
+
+                let b2 = calibration.b2 as i32;
+                let ac2 = calibration.ac2 as i32;
+                let ac1 = calibration.ac1 as i32;
+
+                let b5 = self.compute_b5(raw_temperature)?;
+
+                let b6 = b5.checked_sub(4000)?;
+                let x1 = b2
+                    .checked_mul(b6.checked_mul(b6)?.checked_shr(12)?)?
+                    .checked_shr(11)?;
+                let x2 = ac2.checked_mul(b6)?.checked_shr(11)?;
+                let x3 = x1.checked_add(x2)?;
+                let b3 = ac1
+                    .checked_mul(4)?
+                    .checked_add(x3)?
+                    // in "disable-arithmetic-checks" it is: mode as u8
+                    .checked_shl(mode as u32)?
+                    .checked_add(2)?
+                    .checked_div(4)?;
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("B5: {}", b5);
+                    defmt::debug!("B6: {}", b6);
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("X3: {}", x3);
+                    defmt::debug!("B3: {}", b3);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("B5: {}", b5);
+                    log::debug!("B6: {}", b6);
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("X3: {}", x3);
+                    log::debug!("B3: {}", b3);
+                }
+
+                let ac3 = calibration.ac3 as i32;
+                let b1 = calibration.b1 as i32;
+                let ac4 = calibration.ac4 as u32;
+
+                let x1 = ac3.checked_mul(b6)?.checked_shr(13)?;
+                let x2 = b1
+                    .checked_mul(b6.checked_mul(b6)?.checked_shr(12)?)?
+                    .checked_shr(16)?;
+                let x3 = x1.checked_add(x2)?.checked_add(2)?.checked_shr(2)?;
+                let b4 = ac4
+                    .checked_mul(x3.checked_add(32768)? as u32)?
+                    .checked_shr(15)?;
+                let b7 = (raw_pressure as u32)
+                    .checked_sub(b3 as u32)?
+                    // in "disable-arithmetic-checks" it is: mode as u8
+                    .checked_mul(50000_u32.checked_shr(mode as u32)?)?;
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("X3: {}", x3);
+                    defmt::debug!("B4: {}", b4);
+                    defmt::debug!("B7: {}", b7);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("X3: {}", x3);
+                    log::debug!("B4: {}", b4);
+                    log::debug!("B7: {}", b7);
+                }
+
+                let p = if b7 < 0x80000000 {
+                    b7.checked_mul(2)?.checked_div(b4)?
+                } else {
+                    b7.checked_div(b4)?.checked_mul(2)?
+                } as i32;
+
+                let x1 = p.checked_shr(8)?.checked_mul(p.checked_shr(8)?)?;
+                let x1 = x1.checked_mul(3038)?.checked_shr(16)?;
+                let x2 = -7357_i32.checked_mul(p)?.checked_shr(16)?;
+
+                let p =
+                    p.checked_add(x1.checked_add(x2)?.checked_add(3791_i32)?.checked_shr(4)?)?;
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("P: {}", p);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("P: {}", p);
+                }
+
+                Some(p)
+            }
+        }
+
+        #[cfg(feature = "disable-arithmetic-checks")]
+        impl<I2C, DELAY> BMP180<I2C, DELAY>
+        where
+            I2C: i2c_trait,
+            DELAY: delay_trait,
+        {
+            /// Compute B5 value.
+            fn compute_b5(&self, raw_temperature: i16) -> Option<i32> {
+                let calibration = self.calibration();
+
+                let x1 = ((raw_temperature as i32 - calibration.ac6 as i32)
+                    * calibration.ac5 as i32)
+                    >> 15;
+                let x2 = ((calibration.mc as i32) << 11) / (x1 + calibration.md as i32);
+
+                Some(x1 + x2)
+            }
+
+            /// Compute true temprature in `0.1 C`.
+            fn compute_temperature(&self, raw_temperature: i16) -> Option<i32> {
+                let b5 = self.compute_b5(raw_temperature)?;
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("Computing temperature");
+                    defmt::debug!("Raw temperature: {}", raw_temperature);
+                    defmt::debug!("B5: {}", b5);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("Computing temperature");
+                    log::debug!("Raw temperature: {}", raw_temperature);
+                    log::debug!("B5: {}", b5);
+                }
+
+                Some((b5 + 8) >> 4)
+            }
+
+            /// Compute true pressure in `Pa`.
+            fn compute_pressure(&self, raw_temperature: i16, raw_pressure: i32) -> Option<i32> {
+                let calibration = self.calibration();
+                let mode = self.mode();
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("Computing pressure");
+                    defmt::debug!("Raw temperature: {}", raw_temperature);
+                    defmt::debug!("Raw pressure: {}", raw_pressure);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("Computing pressure");
+                    log::debug!("Raw temperature: {}", raw_temperature);
+                    log::debug!("Raw pressure: {}", raw_pressure);
+                }
+
+                let b5 = self.compute_b5(raw_temperature)?;
+
+                let b6 = b5 - 4000;
+                let x1 = (calibration.b2 as i32 * ((b6 * b6) >> 12)) >> 11;
+                let x2 = (calibration.ac2 as i32 * b6) >> 11;
+                let x3 = x1 + x2;
+                let b3 = ((((calibration.ac1 as i32) * 4 + x3) << mode as u8) + 2) / 4;
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("B5: {}", b5);
+                    defmt::debug!("B6: {}", b6);
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("X3: {}", x3);
+                    defmt::debug!("B3: {}", b3);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("B5: {}", b5);
+                    log::debug!("B6: {}", b6);
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("X3: {}", x3);
+                    log::debug!("B3: {}", b3);
+                }
+
+                let x1 = (calibration.ac3 as i32 * b6) >> 13;
+                let x2 = (calibration.b1 as i32 * ((b6 * b6) >> 12)) >> 16;
+                let x3 = ((x1 + x2) + 2) >> 2;
+                let b4 = ((calibration.ac4 as u32) * ((x3 + 32768) as u32)) >> 15;
+                let b7 = (raw_pressure as u32 - b3 as u32) * (50000 >> mode as u8);
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("X3: {}", x3);
+                    defmt::debug!("B4: {}", b4);
+                    defmt::debug!("B7: {}", b7);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("X3: {}", x3);
+                    log::debug!("B4: {}", b4);
+                    log::debug!("B7: {}", b7);
+                }
+
+                let p = if b7 < 0x80000000 {
+                    (b7 * 2) / b4
+                } else {
+                    (b7 / b4) * 2
+                } as i32;
+
+                let x1 = (p >> 8) * (p >> 8);
+                let x1 = (x1 * 3038) >> 16;
+                let x2 = (-7357 * p) >> 16;
+
+                let p = p + ((x1 + x2 + 3791_i32) >> 4);
+
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::debug!("X1: {}", x1);
+                    defmt::debug!("X2: {}", x2);
+                    defmt::debug!("P: {}", p);
+                }
+
+                #[cfg(feature = "log")]
+                {
+                    log::debug!("X1: {}", x1);
+                    log::debug!("X2: {}", x2);
+                    log::debug!("P: {}", p);
+                }
+
+                Some(p)
             }
         }
 

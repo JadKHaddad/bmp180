@@ -13,7 +13,7 @@ fuzz_target!(|data: &[u8]| {
     let mut bmp180 = UninitBMP180::builder(fuzz_i2c, FuzzDelay {})
         .build()
         .initialize()
-        .unwrap();
+        .expect("Could not initialize BMP180");
 
-    bmp180.update().unwrap();
+    bmp180.update().ok();
 });

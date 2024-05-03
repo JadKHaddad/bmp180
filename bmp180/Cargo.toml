@@ -13,6 +13,7 @@ readme = "../README.md"
 default = ["async", "impl-debug"]
 async = ["dep:embedded-hal-async"]
 blocking = ["dep:embedded-hal"]
+disable-arithmetic-checks = []
 log = ["dep:log"]
 defmt = ["dep:defmt"]
 i-know-what-i-am-doing = []
