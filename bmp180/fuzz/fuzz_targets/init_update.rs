@@ -1,6 +1,6 @@
 #![no_main]
 
-use bmp180::{
+use bmp180_embedded_hal::{
     blocking::UninitBMP180,
     fuzz::{FuzzDelay, FuzzI2C},
 };

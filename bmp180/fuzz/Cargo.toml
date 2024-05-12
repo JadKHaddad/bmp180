@@ -9,7 +9,9 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-bmp180 = { path = "../", default-features = false, features = ["fuzz"] }
+bmp180-embedded-hal = { path = "../", default-features = false, features = [
+    "fuzz",
+] }
 
 [workspace]
 members = ["."]

@@ -1,7 +1,7 @@
 #![no_main]
 #![no_std]
 
-use bmp180::blocking::UninitBMP180;
+use bmp180_embedded_hal::blocking::UninitBMP180;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
@@ -35,7 +35,7 @@ async fn main(_spawner: Spawner) {
     );
 
     let mut bmp180 = UninitBMP180::builder(i2c, Delay {})
-        .mode(bmp180::Mode::UltraHighResolution)
+        .mode(bmp180_embedded_hal::Mode::UltraHighResolution)
         .build()
         .initialize()
         .unwrap();
