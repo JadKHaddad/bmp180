@@ -1,5 +1,5 @@
 [package]
-name = "bmp180"
+name = "bmp180-embedded-hal"
 version = "0.1.0"
 edition = "2021"
 authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
