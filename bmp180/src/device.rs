@@ -172,7 +172,7 @@ pub mod module {
 
         /// `BMP180` device.
         ///
-        /// Represents an initialized BMP180 device valid id and its calibration data set.
+        /// Represents an initialized BMP180 device with a valid id and its calibration data set.
         #[derive(Clone)]
         #[cfg_attr(feature = "impl-defmt-format", derive(defmt::Format))]
         #[cfg_attr(feature = "impl-debug", derive(core::fmt::Debug))]
